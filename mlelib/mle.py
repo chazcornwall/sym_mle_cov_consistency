@@ -1,0 +1,138 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from typing import Callable, Tuple, List
+from pydantic import BaseModel, ConfigDict, Field
+
+from mlelib.utils import plot_cov
+
+
+class MlParams(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    x0: np.ndarray = \
+        Field(description="Initial guess for the solution")
+    residual_generator: Callable[[np.ndarray, np.ndarray], np.ndarray] = \
+        Field(description="Returns the residual r(x) = z - h(x)")
+    residual_jacobian_generator : Callable[[np.ndarray], np.ndarray] = \
+        Field(description="Returns partial derivative of r(x) with respect to x where r(x) = z - h(x)")
+    cost_function_generator : Callable[[np.ndarray], float] = \
+        Field(description="Evaluates the cost function rho(r(x))")
+    cost_function_gradient_generator : Callable[[np.ndarray], np.ndarray] = \
+        Field(description="Partial derivative of rho(r(x)) with respect to r(x)")
+    cost_function_hessian_generator : Callable[[np.ndarray], np.ndarray] = \
+        Field(description="Hessian of cost function: d^2 rho(r) / (dr_i dr_j) Should be PSD and resembles the inverse of a covariance matrix")
+    max_its: int = 100
+    max_ls_its: int = 10
+    min_x_diff: float = 1e-5
+    alpha0: float = 1.0
+
+
+class MlSolution(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    it: int
+    error: float
+    x: np.ndarray
+    x_seq : List[np.ndarray] = []
+    P: np.ndarray
+
+
+class MaximumLikelihood:
+
+    def __init__(self, params: MlParams):
+        self.__params = params
+
+    def mle(self, z: np.ndarray, verbose: bool = False) -> MlSolution:
+        '''
+        Maximum likelihood estimator of the form:
+
+        $$
+        arg max_x ln(f(z|x)) or arg min_x -ln(f(z|x))
+        $$
+
+        where x is assumed to not be random (if x were random, we would be doing MAP estimation).
+        We also assume f(z|x) is distributed such that
+
+        $$
+        f(z|x) propto exp(-rho(z - h(x)))
+        $$
+
+        where rho() is a non-negative cost function
+        '''
+
+        # Extract functions and parameters for the Gauss-Newton iteration
+        x_seq : List[np.ndarray] = []
+        x = self.__params.x0
+        r = lambda z, x : self.__params.residual_generator(z, x)
+        J = lambda x : self.__params.residual_jacobian_generator(x)
+        g = lambda res : self.__params.cost_function_gradient_generator(res)
+        H = lambda res : self.__params.cost_function_hessian_generator(res)
+        rho = lambda res : self.__params.cost_function_generator(res)
+
+        x_seq.append(x)
+        curr_i = 0
+        for i in range(self.__params.max_its):
+            
+            # Calculate matrices/vectors for Gauss-Newton iteration
+            x_prev = np.copy(x)
+            res = r(z, x_prev)
+            Jxprev = J(x_prev)
+            Hres = H(res)
+            FI = Jxprev.T @ Hres @ Jxprev # Approximate Fisher Information matrix (approximate due to Gauss-Newton assumptions)
+            grad = -Jxprev.T @ g(res) # Calculate gradient using chain rule
+
+            if verbose:
+                print(f"Before it {i+1}")
+                print(f"\tGradient (flattened): {grad.T}")
+                print(f"\tCost: {rho(res)}")
+
+            # Update damping factor using line search
+            alpha = self.__params.alpha0
+            for j in range(self.__params.max_ls_its):
+
+                # Solve the following equation: J.T @ H @ J @ (x - x_prev) = -J.T @ g(res)
+                x = x_prev + alpha * np.linalg.solve(FI, grad)
+
+                # Once we find a good damping factor, keep going!
+                if (rho(res) < rho(r(z, x))):
+                    alpha *= 0.5
+                else:
+                    break 
+
+            if j + 1 >= self.__params.max_ls_its:
+                print(f"WARNING: Could not find cost-reducing line search!")
+
+            if verbose:
+                print(f"After it: {i+1}")
+                print(f"\talpha: {alpha}")
+                print(f"\tx: {x.T}")
+                print(f"\tCost: {rho(r(z, x))}")
+
+            x_seq.append(x)
+            if np.linalg.norm(x - x_prev) < self.__params.min_x_diff:
+                curr_i = i
+                break
+        
+        # According to the Cramer-Rao Lower Bound, all ML estimators approach a covariance of (FI)^-1
+
+        return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI))
+    
+    def experiment(self, z_mean: np.ndarray, z_cov: np.ndarray, N: int = 1000, plot : bool = True):
+        L = np.cholesky(z_cov)
+        x_est_samples = np.zeros((self.__params.x0.shape[0], N))
+        for i in range(N):
+            z = z_mean + L @ np.random.randn()
+            sol = self.mle(z)
+            x_est_samples[:, [i]] = sol.x
+
+        P_empirical = np.cov(x_est_samples)
+        P_est = sol.P
+        
+        # Metric: P_est - P_empirical should be PSD for a conservative estimator!
+        print(f" min(eigval(P_est - P_emp)): {min(np.linalg.eigvals(P_est - P_empirical))}")
+        
+        if plot:
+            mu_empirical = np.mean(x_est_samples)
+            plt.scatter(x_est_samples, x_est_samples, label="Sample Estimates")
+            plot_cov(P_empirical, mu_empirical, label="Empirical Cov", color="red")
+            plot_cov(P_est, mu_empirical, label="Estimated Cov", color="orange")
+            plt.legend()
+            plt.show()
