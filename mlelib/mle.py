@@ -111,28 +111,47 @@ class MaximumLikelihood:
                 curr_i = i
                 break
         
+        if i + 1 >= self.__params.max_its and verbose:
+            print(f"WARNING: Did not converge within max iterations!")
+        
         # According to the Cramer-Rao Lower Bound, all ML estimators approach a covariance of (FI)^-1
 
-        return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI))
+        # Try finding a more conservative linearization
+        # Lest = np.linalg.cholesky(np.linalg.inv(FI))
+        # min_trace = np.inf
+        # x_min = np.copy(x)
+        # for k in range(100):
+        #     x_test = x + Lest @ np.random.randn(x.shape[0],1)
+        #     curr_trace = np.linalg.trace(J(x_test).T @ H(r(z, x_test)) @ J(x_test))
+        #     if curr_trace < min_trace:
+        #         min_trace = curr_trace
+        #         x_min = np.copy(x_test)
+
+        # FI = J(x_min).T @ H(r(z, x_min)) @ J(x_min)
+
+        return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI - 0*np.eye(2)))
     
     def experiment(self, z_mean: np.ndarray, z_cov: np.ndarray, N: int = 1000, plot : bool = True):
-        L = np.cholesky(z_cov)
+        L = np.linalg.cholesky(z_cov)
         x_est_samples = np.zeros((self.__params.x0.shape[0], N))
+        P_est_list : List = []
         for i in range(N):
-            z = z_mean + L @ np.random.randn()
+            z = z_mean + L @ np.random.randn(z_mean.shape[0], 1)
             sol = self.mle(z)
             x_est_samples[:, [i]] = sol.x
 
+            if i % 100 == 0:
+                P_est_list.append(sol.P)
+
         P_empirical = np.cov(x_est_samples)
-        P_est = sol.P
-        
-        # Metric: P_est - P_empirical should be PSD for a conservative estimator!
-        print(f" min(eigval(P_est - P_emp)): {min(np.linalg.eigvals(P_est - P_empirical))}")
         
         if plot:
-            mu_empirical = np.mean(x_est_samples)
-            plt.scatter(x_est_samples, x_est_samples, label="Sample Estimates")
+            mu_empirical = np.array([np.mean(x_est_samples, 1)]).T
+            plt.scatter(x_est_samples[[0],:], x_est_samples[[1],:], label="Sample Estimates")
             plot_cov(P_empirical, mu_empirical, label="Empirical Cov", color="red")
-            plot_cov(P_est, mu_empirical, label="Estimated Cov", color="orange")
+            for P_est in P_est_list:
+                # Metric: P_est - P_empirical should be PSD for a conservative estimator!
+                print(f" min(eigval(P_est - P_emp)): {min(np.linalg.eigvals(P_est - P_empirical))}")
+                plot_cov(P_est, mu_empirical, label="Estimated Cov", color="orange")
             plt.legend()
             plt.show()

@@ -11,11 +11,15 @@ Run experiment for three range measurements to show the effects of propagating n
 where S is the covariance of the measurements and
 h_i = sqrt((x - si)^T(x - si)) where si is the position of a satellite
 """
-S = 0.5 * np.eye(3)
+S = np.array([
+    [0.5, 0.0, 0.0],
+    [0.0, 1.0, 0.0],
+    [0.0, 0.0, 1.5]
+])
 Sinv = np.linalg.inv(S)
 
 Sats = np.zeros((2,3))
-Sats[:,[0]] = np.array([[0.0, 5.0]]).T
+Sats[:,[0]] = np.array([[-8.0, 5.0]]).T
 Sats[:,[1]] = np.array([[-1.0, -3.0]]).T
 Sats[:,[2]] = np.array([[3.0, 2.0]]).T
 
@@ -57,14 +61,17 @@ def cost_function_gradient_generator(res: np.ndarray) -> np.ndarray:
     Returns:
         Partial derivative of rho(r(x)) with respect to r(x)
     """
-    return 2 * Sinv @ res
+    return Sinv @ res  # Is 2 * Sinv @ res, but removing 2 due to hessian
 
 def cost_function_hessian_generator(res: np.ndarray) -> np.ndarray:
     """
+    REMEMBER: If the same constant appears in this function as the cost_function_gradient_generator,
+        remove the constants! The constants will cancel out during the optimization. If left, the constants
+        will not affect the optimization, but will mess up the covariance calculations!
     Returns:
         Hessian of cost function: d^2 rho(r) / (dr_i dr_j) Should be PSD and resembles the inverse of a covariance matrix
     """
-    return 2 * Sinv
+    return Sinv # Is 2 * Sinv, but removing 2 due to gradient
 
 
 def main():
@@ -79,10 +86,12 @@ def main():
     )
 
     ml = MaximumLikelihood(ml_params)
-    L = np.linalg.cholesky(S)
-    z = h(np.array([[1,2]]).T) + L @ np.random.randn(3,1)
-    print(z)
-    ml.mle(z, verbose=True)
+    # L = np.linalg.cholesky(S)
+    # z = h(np.array([[1,2]]).T) + L @ np.random.randn(3,1)
+    # print(z)
+    # ml.mle(z, verbose=True)
+
+    ml.experiment(h(np.array([[1,2]]).T), S, N=2000)
 
 
 if __name__ == "__main__":
