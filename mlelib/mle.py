@@ -129,6 +129,10 @@ class MaximumLikelihood:
 
         # FI = J(x_min).T @ H(r(z, x_min)) @ J(x_min)
 
+        Jxprev = J(x)
+        Hres = H(r(z, x))
+        FI = Jxprev.T @ Hres @ Jxprev # Approximate Fisher Information matrix (approximate due to Gauss-Newton assumptions)
+
         return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI - 0*np.eye(2)))
     
     def experiment(self, z_mean: np.ndarray, z_cov: np.ndarray, N: int = 1000, plot : bool = True):

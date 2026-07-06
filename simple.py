@@ -39,14 +39,14 @@ def cost_function_gradient_generator(res: np.ndarray) -> np.ndarray:
     Returns:
         Partial derivative of rho(r(x)) with respect to r(x)
     """
-    return 2 * res
+    return res
 
 def cost_function_hessian_generator(res: np.ndarray) -> np.ndarray:
     """
     Returns:
         Hessian of cost function: d^2 rho(r) / (dr_i dr_j) Should be PSD and resembles the inverse of a covariance matrix
     """
-    return 2 * np.eye(2)
+    return np.eye(2)
 
 
 def main():

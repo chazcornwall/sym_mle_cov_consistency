@@ -19,7 +19,7 @@ S = np.array([
 Sinv = np.linalg.inv(S)
 
 Sats = np.zeros((2,3))
-Sats[:,[0]] = np.array([[-8.0, 5.0]]).T
+Sats[:,[0]] = np.array([[-1.0, -2.0]]).T
 Sats[:,[1]] = np.array([[-1.0, -3.0]]).T
 Sats[:,[2]] = np.array([[3.0, 2.0]]).T
 
