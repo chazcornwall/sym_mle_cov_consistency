@@ -12,14 +12,14 @@ where S is the covariance of the measurements and
 h_i = sqrt((x - si)^T(x - si)) where si is the position of a satellite
 """
 S = np.array([
-    [0.5, 0.0, 0.0],
-    [0.0, 1.0, 0.0],
-    [0.0, 0.0, 1.5]
+    [2.0, 0.0, 0.0],
+    [0.0, 2.0, 0.0],
+    [0.0, 0.0, 2.0]
 ])
 Sinv = np.linalg.inv(S)
 
 Sats = np.zeros((2,3))
-Sats[:,[0]] = np.array([[-1.0, -2.0]]).T
+Sats[:,[0]] = np.array([[-1.0, -2.7]]).T
 Sats[:,[1]] = np.array([[-1.0, -3.0]]).T
 Sats[:,[2]] = np.array([[3.0, 2.0]]).T
 
@@ -91,7 +91,7 @@ def main():
     # print(z)
     # ml.mle(z, verbose=True)
 
-    ml.experiment(h(np.array([[1,2]]).T), S, N=2000)
+    ml.experiment(h(np.array([[1,2]]).T), S, N=1000)
 
 
 if __name__ == "__main__":

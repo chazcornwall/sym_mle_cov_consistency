@@ -120,7 +120,7 @@ class MaximumLikelihood:
         # Lest = np.linalg.cholesky(np.linalg.inv(FI))
         # min_trace = np.inf
         # x_min = np.copy(x)
-        # for k in range(100):
+        # for k in range(1000):
         #     x_test = x + Lest @ np.random.randn(x.shape[0],1)
         #     curr_trace = np.linalg.trace(J(x_test).T @ H(r(z, x_test)) @ J(x_test))
         #     if curr_trace < min_trace:
@@ -129,11 +129,13 @@ class MaximumLikelihood:
 
         # FI = J(x_min).T @ H(r(z, x_min)) @ J(x_min)
 
-        Jxprev = J(x)
-        Hres = H(r(z, x))
-        FI = Jxprev.T @ Hres @ Jxprev # Approximate Fisher Information matrix (approximate due to Gauss-Newton assumptions)
+        # Jxprev = J(x)
+        # Hres = H(r(z, x))
+        # FI = Jxprev.T @ Hres @ Jxprev # Approximate Fisher Information matrix (approximate due to Gauss-Newton assumptions)
 
-        return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI - 0*np.eye(2)))
+        print(f"cov psd test: {min(np.linalg.eigvals(Jxprev @ Jxprev.T - np.linalg.inv(Hres)))}")
+
+        return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI))
     
     def experiment(self, z_mean: np.ndarray, z_cov: np.ndarray, N: int = 1000, plot : bool = True):
         L = np.linalg.cholesky(z_cov)
@@ -144,7 +146,7 @@ class MaximumLikelihood:
             sol = self.mle(z)
             x_est_samples[:, [i]] = sol.x
 
-            if i % 100 == 0:
+            if i % int(N / 10 + 0.5) == 0:
                 P_est_list.append(sol.P)
 
         P_empirical = np.cov(x_est_samples)
@@ -153,9 +155,12 @@ class MaximumLikelihood:
             mu_empirical = np.array([np.mean(x_est_samples, 1)]).T
             plt.scatter(x_est_samples[[0],:], x_est_samples[[1],:], label="Sample Estimates")
             plot_cov(P_empirical, mu_empirical, label="Empirical Cov", color="red")
-            for P_est in P_est_list:
+            for i, P_est in enumerate(P_est_list):
                 # Metric: P_est - P_empirical should be PSD for a conservative estimator!
                 print(f" min(eigval(P_est - P_emp)): {min(np.linalg.eigvals(P_est - P_empirical))}")
-                plot_cov(P_est, mu_empirical, label="Estimated Cov", color="orange")
+                if i == 0:
+                    plot_cov(P_est, mu_empirical, label="Estimated Cov", color="orange")
+                else:
+                    plot_cov(P_est, mu_empirical, color="orange")
             plt.legend()
             plt.show()
