@@ -49,6 +49,22 @@ def residual_jacobian_generator(x: np.ndarray) -> np.ndarray:
         J[[i], :] = -1 / hx[i,0] * (x.T - Sats[:,[i]].T)
     return J
 
+def residual_hessian_generator(x: np.ndarray) -> np.ndarray:
+    """
+    Returns a tensor representing the Hessian JHess. 
+    The slice JHess[i,:,:] represents the Hessian for the ith 
+    component of the residual. Summing together all the slices
+    gives the "information" wrt x. 
+    """
+    hx = h(x)
+    JHess = np.zeros((hx.shape[0], x.shape[0], x.shape[0]))
+    SB = np.eye(x.shape[0])
+    for i in range(hx.shape[0]):
+        for j in range(x.shape[0]):
+            JHess[[i], [j], :] = 1 / hx[i,0]**3 * (x.T - Sats[:,[i]].T) * (x[j,0] - Sats[j,i]) - 1 / hx[i,0] * SB[[j],:]
+
+    return JHess
+
 def cost_function_generator(res: np.ndarray) -> float:
     """
     Returns:
@@ -91,7 +107,18 @@ def main():
     # print(z)
     # ml.mle(z, verbose=True)
 
-    ml.experiment(h(np.array([[1,2]]).T), S, N=1000)
+    # ml.experiment(h(np.array([[1,2]]).T), S, N=10)
+
+    # Test residual hessian
+    x0 = np.zeros((2,1))
+    JHess = residual_hessian_generator(x0)
+    Info = -JHess[0,:,:]-JHess[1,:,:]-JHess[2,:,:]
+    print(Info)
+    J = residual_jacobian_generator(x0)
+    Infoapprox = J.T @ J
+    print(Infoapprox)
+    print(np.linalg.eig(Info))
+    print(np.linalg.eigvals(JHess[0,:,:]))
 
 
 if __name__ == "__main__":

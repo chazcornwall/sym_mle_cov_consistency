@@ -133,7 +133,9 @@ class MaximumLikelihood:
         # Hres = H(r(z, x))
         # FI = Jxprev.T @ Hres @ Jxprev # Approximate Fisher Information matrix (approximate due to Gauss-Newton assumptions)
 
-        print(f"cov psd test: {min(np.linalg.eigvals(Jxprev @ Jxprev.T - np.linalg.inv(Hres)))}")
+        print(f"JJ^T:\n {Jxprev @ Jxprev.T}")
+        print(f"S: \n{np.linalg.inv(Hres)}")
+        # print(f"cov psd test: {min(np.linalg.eigvals(Jxprev @ Jxprev.T - np.linalg.inv(Hres)))}")
 
         return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI))
     
