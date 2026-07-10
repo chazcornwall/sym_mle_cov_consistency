@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Callable, Tuple, List
+import matplotlib.pyplot as plt
 
 from mlelib import MaximumLikelihood, MlParams
 
@@ -89,6 +90,93 @@ def cost_function_hessian_generator(res: np.ndarray) -> np.ndarray:
     """
     return Sinv # Is 2 * Sinv, but removing 2 due to gradient
 
+def quadratic_measurement_models(M: int, x: np.ndarray) -> List[Tuple[np.ndarray, np.ndarray]]:
+
+    JHess = -residual_hessian_generator(x)
+    J = -residual_jacobian_generator(x)
+
+    quadratic_func_defs = []
+    for i in range(M):
+        print(f"JHess {i}:\n {JHess[i,:,:]}")
+        print(np.linalg.eigvals(JHess[i,:,:]))
+        print(f"J {i}:\n {J.T[:,[i]]}")
+        x0 = x + np.linalg.solve(JHess[i,:,:], -J.T[:,[i]])
+        print(x0)
+        quadratic_func_defs.append((x0, JHess[i,:,:]))
+    return quadratic_func_defs
+
+
+def plot_measurement_function(x: np.ndarray, M: int, N: int):
+    """
+    Params:
+        M: Number of elements in measurement
+        N: Width of grid evaluation
+    """
+
+    x0 = np.linspace(-10, 10, N)
+    x1 = np.linspace(-10, 10, N)
+
+    X0, X1 = np.meshgrid(x0, x1)
+
+    models = quadratic_measurement_models(M, x)
+
+    R = np.zeros((M, N, N))
+    Qmodel = np.zeros((M, N, N))
+    for i in range(N):
+        for j in range(N):
+            x_eval = np.array([[x0[i], x1[j]]]).T
+            R[:, [i], [j]] = h(x_eval)
+            for k in range(M):
+                Qmodel[k, [i], [j]] = (x_eval - models[k][0]).T @ models[k][1] @ (x_eval - models[k][0])
+
+
+    fig, axs = plt.subplots(2, M+2, figsize=(15,4))
+
+    print(R[0,0,0])
+
+    # Plot range measurements
+    for i in range(M):
+        contour_lines = axs[0,i].contourf(X0, X1, R[i,:,:], levels=20, cmap='viridis')
+        axs[0,i].set_title(f'Range from Satellite {i}')
+        axs[0,i].set_xlabel('X axis')
+        axs[0,i].set_ylabel('Y axis')
+        axs[0,i].set_aspect('equal')
+
+    # Contour of measurements added together
+    contour_lines = axs[0,M].contourf(X0, X1, np.sum(R, axis=0), levels=20, cmap='viridis')
+    axs[0,M].set_title(f'Sum of Ranges')
+    axs[0,M].set_xlabel('X axis')
+    axs[0,M].set_ylabel('Y axis')
+    axs[0,M].set_aspect('equal')
+    
+    # Add legend for measurements
+    axs[0,M+1].set_axis_off()
+    fig.colorbar(contour_lines, ax=axs[0,M+1], fraction=0.05, location='left')
+
+    # Plot quadratic range measurement models
+    for i in range(M):
+        contour_lines = axs[1,i].contourf(X0, X1, Qmodel[i,:,:], levels=20, cmap='viridis')
+        axs[1,i].set_title(f'Range from Satellite {i}')
+        axs[1,i].set_xlabel('X axis')
+        axs[1,i].set_ylabel('Y axis')
+        axs[1,i].set_aspect('equal')
+
+    # Contour of quadratic range measurement models added together
+    contour_lines = axs[1,M].contourf(X0, X1, np.sum(Qmodel, axis=0), levels=20, cmap='viridis')
+    axs[1,M].set_title(f'Sum of Ranges')
+    axs[1,M].set_xlabel('X axis')
+    axs[1,M].set_ylabel('Y axis')
+    axs[1,M].set_aspect('equal')
+    
+    # Add legend for quadratic range measurement models
+    axs[1,M+1].set_axis_off()
+    fig.colorbar(contour_lines, ax=axs[1,M+1], fraction=0.05, location='left')
+
+    
+    plt.tight_layout()
+    plt.show()
+
+
 
 def main():
     ml_params = MlParams(
@@ -101,6 +189,9 @@ def main():
         max_its=10
     )
 
+    # plot_measurement_function(np.array([[0, 0]]).T, 3, 100)
+    quadratic_measurement_models(3, np.array([[0,0]]).T)
+
     ml = MaximumLikelihood(ml_params)
     # L = np.linalg.cholesky(S)
     # z = h(np.array([[1,2]]).T) + L @ np.random.randn(3,1)
@@ -110,15 +201,15 @@ def main():
     # ml.experiment(h(np.array([[1,2]]).T), S, N=10)
 
     # Test residual hessian
-    x0 = np.zeros((2,1))
-    JHess = residual_hessian_generator(x0)
-    Info = -JHess[0,:,:]-JHess[1,:,:]-JHess[2,:,:]
-    print(Info)
-    J = residual_jacobian_generator(x0)
-    Infoapprox = J.T @ J
-    print(Infoapprox)
-    print(np.linalg.eig(Info))
-    print(np.linalg.eigvals(JHess[0,:,:]))
+    # x0 = np.zeros((2,1))
+    # JHess = residual_hessian_generator(x0)
+    # Info = -JHess[0,:,:]-JHess[1,:,:]-JHess[2,:,:]
+    # print(Info)
+    # J = residual_jacobian_generator(x0)
+    # Infoapprox = J.T @ J
+    # print(Infoapprox)
+    # print(np.linalg.eig(Info))
+    # print(np.linalg.eigvals(JHess[0,:,:]))
 
 
 if __name__ == "__main__":
