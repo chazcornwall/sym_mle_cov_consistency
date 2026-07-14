@@ -18,6 +18,7 @@ S = np.array([
     [0.0, 0.0, 2.0]
 ])
 Sinv = np.linalg.inv(S)
+Sinvsqrt = np.linalg.cholesky(Sinv)
 
 Sats = np.zeros((2,3))
 Sats[:,[0]] = np.array([[-1.0, -2.7]]).T
@@ -73,6 +74,19 @@ def cost_function_generator(res: np.ndarray) -> float:
     """
     return (res.T @ Sinv @ res)[0,0]
 
+def huber_cost_function_generator(res: np.ndarray, threshold: float) -> float:
+    """
+    Returns:
+        Huber Cost function rho(r(x))
+    """
+    l2_cost = (res.T @ Sinv @ res)[0,0]
+
+    cost = l2_cost
+    if np.sqrt(cost) > threshold:
+        linear_cost = threshold * (np.sqrt(l2_cost) - threshold)
+        cost = linear_cost
+    return cost
+
 def cost_function_gradient_generator(res: np.ndarray) -> np.ndarray:
     """
     Returns:
@@ -80,7 +94,30 @@ def cost_function_gradient_generator(res: np.ndarray) -> np.ndarray:
     """
     return Sinv @ res  # Is 2 * Sinv @ res, but removing 2 due to hessian
 
+def huber_cost_function_gradient_generator(res: np.ndarray, threshold: float) -> np.ndarray:
+    """
+    Returns:
+        Partial derivative of rho(r(x)) with respect to r(x) where rho() is a 
+        Huber cost function
+    """
+    l2_cost = (res.T @ Sinv @ res)[0,0]
+
+    gradient = Sinv @ res
+    if np.sqrt(l2_cost) > threshold:
+        gradient = threshold / np.sqrt(l2_cost) * Sinv @ res
+    return gradient
+
 def cost_function_hessian_generator(res: np.ndarray) -> np.ndarray:
+    """
+    REMEMBER: If the same constant appears in this function as the cost_function_gradient_generator,
+        remove the constants! The constants will cancel out during the optimization. If left, the constants
+        will not affect the optimization, but will mess up the covariance calculations!
+    Returns:
+        Hessian of cost function: d^2 rho(r) / (dr_i dr_j) Should be PSD and resembles the inverse of a covariance matrix
+    """
+    return Sinv # Is 2 * Sinv, but removing 2 due to gradient
+
+def huber_cost_function_hessian_generator(res: np.ndarray) -> np.ndarray:
     """
     REMEMBER: If the same constant appears in this function as the cost_function_gradient_generator,
         remove the constants! The constants will cancel out during the optimization. If left, the constants
