@@ -14,6 +14,8 @@ class MlParams(BaseModel):
         Field(description="Returns the residual r(x) = z - h(x)")
     residual_jacobian_generator : Callable[[np.ndarray], np.ndarray] = \
         Field(description="Returns partial derivative of r(x) with respect to x where r(x) = z - h(x)")
+    residual_hessian_generator : Callable[[np.ndarray], np.ndarray] = \
+        Field(description="Returns Hessian of the residual: a 3D tensor where [i,:,:] is the Hessian of the ith component of the residual")
     cost_function_generator : Callable[[np.ndarray], float] = \
         Field(description="Evaluates the cost function rho(r(x))")
     cost_function_gradient_generator : Callable[[np.ndarray], np.ndarray] = \
@@ -21,10 +23,9 @@ class MlParams(BaseModel):
     cost_function_hessian_generator : Callable[[np.ndarray], np.ndarray] = \
         Field(description="Hessian of cost function: d^2 rho(r) / (dr_i dr_j) Should be PSD and resembles the inverse of a covariance matrix")
     max_its: int = 100
-    max_ls_its: int = 10
-    min_x_diff: float = 1e-5
+    max_ls_its: int = 100
+    min_x_diff: float = 1e-8
     alpha0: float = 1.0
-
 
 class MlSolution(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -33,7 +34,6 @@ class MlSolution(BaseModel):
     x: np.ndarray
     x_seq : List[np.ndarray] = []
     P: np.ndarray
-
 
 class MaximumLikelihood:
 
@@ -65,6 +65,7 @@ class MaximumLikelihood:
         J = lambda x : self.__params.residual_jacobian_generator(x)
         g = lambda res : self.__params.cost_function_gradient_generator(res)
         H = lambda res : self.__params.cost_function_hessian_generator(res)
+        Hresx = lambda res : self.__params.residual_hessian_generator(res)
         rho = lambda res : self.__params.cost_function_generator(res)
 
         x_seq.append(x)
@@ -116,53 +117,62 @@ class MaximumLikelihood:
         
         # According to the Cramer-Rao Lower Bound, all ML estimators approach a covariance of (FI)^-1
 
-        # Try finding a more conservative linearization
-        # Lest = np.linalg.cholesky(np.linalg.inv(FI))
-        # min_trace = np.inf
-        # x_min = np.copy(x)
-        # for k in range(1000):
-        #     x_test = x + Lest @ np.random.randn(x.shape[0],1)
-        #     curr_trace = np.linalg.trace(J(x_test).T @ H(r(z, x_test)) @ J(x_test))
-        #     if curr_trace < min_trace:
-        #         min_trace = curr_trace
-        #         x_min = np.copy(x_test)
+        FI_gn = J(x).T @ H(r(z, x)) @ J(x)
+        FI_missing = np.zeros((x.shape[0], x.shape[0]))
+        Hresx = Hresx(x)
+        for i in range(z.shape[0]):
+            FI_missing += Hresx[i,:,:] * g(r(z, x))[i,0]
 
-        # FI = J(x_min).T @ H(r(z, x_min)) @ J(x_min)
+        if np.linalg.inv(FI)[0,0] > 50:
+            print(f"FI_missing: \n{FI_missing}")
+        # print(f"FI_gn: \n{FI_gn}")
 
-        # Jxprev = J(x)
-        # Hres = H(r(z, x))
-        # FI = Jxprev.T @ Hres @ Jxprev # Approximate Fisher Information matrix (approximate due to Gauss-Newton assumptions)
+        for i in range(x.shape[0]):
+            for j in range(x.shape[0]):
+                Proj = np.eye(z.shape[0]) - J(x) @ np.linalg.inv(J(x).T @ J(x)) @ J(x).T
+                # print(Proj @ np.array([Hresx[:,i,j]]).T)
 
-        print(f"JJ^T:\n {Jxprev @ Jxprev.T}")
-        print(f"S: \n{np.linalg.inv(Hres)}")
         # print(f"cov psd test: {min(np.linalg.eigvals(Jxprev @ Jxprev.T - np.linalg.inv(Hres)))}")
 
-        return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI))
+        return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI + FI_missing))
     
-    def experiment(self, z_mean: np.ndarray, z_cov: np.ndarray, N: int = 1000, plot : bool = True):
+    def experiment(self, x_gt: np.ndarray, h: Callable, z_cov: np.ndarray, N: int = 1000, plot : bool = True):
         L = np.linalg.cholesky(z_cov)
         x_est_samples = np.zeros((self.__params.x0.shape[0], N))
+        nees = np.zeros(N) # Normalized estimation error squared
         P_est_list : List = []
+        P_avg = np.zeros((x_gt.shape[0], x_gt.shape[0]))
+        z_mean = h(x_gt)
         for i in range(N):
             z = z_mean + L @ np.random.randn(z_mean.shape[0], 1)
             sol = self.mle(z)
+            if i == 0:
+                P_avg = sol.P
+            else:
+                P_avg = 1/(i+1) * sol.P + i/(i+1) * P_avg
             x_est_samples[:, [i]] = sol.x
-
+            nees[i] = ((sol.x - x_gt).T @ np.linalg.inv(sol.P) @ (sol.x - x_gt))[0,0]
             if i % int(N / 10 + 0.5) == 0:
                 P_est_list.append(sol.P)
 
+        # Average normalized estimation error squared. Should be number of dimensions in state
+        print(f"ANEES: {np.mean(nees)}")
+        print(f"E[xhat - xgt]: {np.mean(x_est_samples - x_gt, axis=1)}")
         P_empirical = np.cov(x_est_samples)
         
         if plot:
             mu_empirical = np.array([np.mean(x_est_samples, 1)]).T
-            plt.scatter(x_est_samples[[0],:], x_est_samples[[1],:], label="Sample Estimates")
+            # plt.scatter(x_est_samples[[0],:], x_est_samples[[1],:], label="Sample Estimates")
+            plt.hist2d(x_est_samples[0,:], x_est_samples[1,:], label="Sample Estimates", bins=50)
+            plt.colorbar(label="Counts")
             plot_cov(P_empirical, mu_empirical, label="Empirical Cov", color="red")
             for i, P_est in enumerate(P_est_list):
                 # Metric: P_est - P_empirical should be PSD for a conservative estimator!
-                print(f" min(eigval(P_est - P_emp)): {min(np.linalg.eigvals(P_est - P_empirical))}")
+                # print(f" min(eigval(P_est - P_emp)): {min(np.linalg.eigvals(P_est - P_empirical))}")
                 if i == 0:
                     plot_cov(P_est, mu_empirical, label="Estimated Cov", color="orange")
                 else:
                     plot_cov(P_est, mu_empirical, color="orange")
+            plot_cov(P_avg, mu_empirical, label="Avg Cov", color="blue")
             plt.legend()
             plt.show()

@@ -21,9 +21,9 @@ Sinv = np.linalg.inv(S)
 Sinvsqrt = np.linalg.cholesky(Sinv)
 
 Sats = np.zeros((2,3))
-Sats[:,[0]] = np.array([[-1.0, -2.7]]).T
-Sats[:,[1]] = np.array([[-1.0, -3.0]]).T
-Sats[:,[2]] = np.array([[3.0, 2.0]]).T
+Sats[:,[0]] = np.array([[-100.0, 200.7]]).T
+Sats[:,[1]] = np.array([[-50.0, -50.0]]).T
+Sats[:,[2]] = np.array([[100.0, 200.0]]).T
 
 def h(x: np.ndarray) -> np.ndarray:
     h = np.zeros((3,1))
@@ -214,12 +214,12 @@ def plot_measurement_function(x: np.ndarray, M: int, N: int):
     plt.show()
 
 
-
 def main():
     ml_params = MlParams(
         x0=np.zeros((2,1)),
         residual_generator=residual_generator,
         residual_jacobian_generator=residual_jacobian_generator,
+        residual_hessian_generator=residual_hessian_generator,
         cost_function_generator=cost_function_generator,
         cost_function_gradient_generator=cost_function_gradient_generator,
         cost_function_hessian_generator=cost_function_hessian_generator,
@@ -227,7 +227,7 @@ def main():
     )
 
     # plot_measurement_function(np.array([[0, 0]]).T, 3, 100)
-    quadratic_measurement_models(3, np.array([[0,0]]).T)
+    # quadratic_measurement_models(3, np.array([[0,0]]).T)
 
     ml = MaximumLikelihood(ml_params)
     # L = np.linalg.cholesky(S)
@@ -235,7 +235,7 @@ def main():
     # print(z)
     # ml.mle(z, verbose=True)
 
-    # ml.experiment(h(np.array([[1,2]]).T), S, N=10)
+    ml.experiment(np.array([[1,2]]).T, h, S, N=5000)
 
     # Test residual hessian
     # x0 = np.zeros((2,1))
