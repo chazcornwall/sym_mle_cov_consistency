@@ -22,8 +22,8 @@ Sinvsqrt = np.linalg.cholesky(Sinv)
 
 Sats = np.zeros((2,3))
 Sats[:,[0]] = np.array([[-100.0, 200.7]]).T
-Sats[:,[1]] = np.array([[-50.0, -50.0]]).T
-Sats[:,[2]] = np.array([[100.0, 200.0]]).T
+Sats[:,[1]] = np.array([[-100.0, 250.0]]).T
+Sats[:,[2]] = np.array([[-100.0, 225.0]]).T
 
 def h(x: np.ndarray) -> np.ndarray:
     h = np.zeros((3,1))
@@ -235,7 +235,7 @@ def main():
     # print(z)
     # ml.mle(z, verbose=True)
 
-    ml.experiment(np.array([[1,2]]).T, h, S, N=5000)
+    ml.experiment(np.array([[1,2]]).T, h, S, N=10)
 
     # Test residual hessian
     # x0 = np.zeros((2,1))

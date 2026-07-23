@@ -123,13 +123,18 @@ class MaximumLikelihood:
         for i in range(z.shape[0]):
             FI_missing += Hresx[i,:,:] * g(r(z, x))[i,0]
 
-        if np.linalg.inv(FI)[0,0] > 50:
-            print(f"FI_missing: \n{FI_missing}")
+        print(Hresx[0,:,:])
+        print(J(x_prev).T @ g(r(z, x)))
+
+        # if np.linalg.inv(FI)[0,0] > 50:
+        # print(f"FI_missing: \n{FI_missing}")
         # print(f"FI_gn: \n{FI_gn}")
 
-        for i in range(x.shape[0]):
-            for j in range(x.shape[0]):
-                Proj = np.eye(z.shape[0]) - J(x) @ np.linalg.inv(J(x).T @ J(x)) @ J(x).T
+        # print(f"{min(np.linalg.eigvals(2*H(r(z, x)) - g(r(z, x)) @ g(r(z, x)).T))}")
+
+        # for i in range(x.shape[0]):
+        #     for j in range(x.shape[0]):
+        #         Proj = np.eye(z.shape[0]) - J(x) @ np.linalg.inv(J(x).T @ J(x)) @ J(x).T
                 # print(Proj @ np.array([Hresx[:,i,j]]).T)
 
         # print(f"cov psd test: {min(np.linalg.eigvals(Jxprev @ Jxprev.T - np.linalg.inv(Hres)))}")
