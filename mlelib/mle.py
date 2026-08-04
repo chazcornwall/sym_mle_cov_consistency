@@ -122,9 +122,9 @@ class MaximumLikelihood:
         Hresx = Hresx(x)
         for i in range(z.shape[0]):
             FI_missing += Hresx[i,:,:] * g(r(z, x))[i,0]
-
-        print(Hresx[0,:,:])
-        print(J(x_prev).T @ g(r(z, x)))
+            print(f"tr(Hessian) {i}:\n {np.trace(Hresx[i,:,:].T @ Hresx[i,:,:])}")
+        print(f"Jacobian:\n {J(x)}")
+        print(f"Thresh: {3/(0.01*2) * np.linalg.norm(J(x)[0,:])**2 / (np.linalg.norm(x)**2  + np.trace(np.linalg.inv(FI)))}")
 
         # if np.linalg.inv(FI)[0,0] > 50:
         # print(f"FI_missing: \n{FI_missing}")
@@ -139,7 +139,7 @@ class MaximumLikelihood:
 
         # print(f"cov psd test: {min(np.linalg.eigvals(Jxprev @ Jxprev.T - np.linalg.inv(Hres)))}")
 
-        return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI + FI_missing))
+        return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI))
     
     def experiment(self, x_gt: np.ndarray, h: Callable, z_cov: np.ndarray, N: int = 1000, plot : bool = True):
         L = np.linalg.cholesky(z_cov)
@@ -164,12 +164,13 @@ class MaximumLikelihood:
         print(f"ANEES: {np.mean(nees)}")
         print(f"E[xhat - xgt]: {np.mean(x_est_samples - x_gt, axis=1)}")
         P_empirical = np.cov(x_est_samples)
+        print(f"Var(xhat): \n {P_empirical}")
         
         if plot:
             mu_empirical = np.array([np.mean(x_est_samples, 1)]).T
-            # plt.scatter(x_est_samples[[0],:], x_est_samples[[1],:], label="Sample Estimates")
-            plt.hist2d(x_est_samples[0,:], x_est_samples[1,:], label="Sample Estimates", bins=50)
-            plt.colorbar(label="Counts")
+            plt.scatter(x_est_samples[[0],:], x_est_samples[[1],:], label="Sample Estimates")
+            # plt.hist2d(x_est_samples[0,:], x_est_samples[1,:], label="Sample Estimates", bins=50)
+            # plt.colorbar(label="Counts")
             plot_cov(P_empirical, mu_empirical, label="Empirical Cov", color="red")
             for i, P_est in enumerate(P_est_list):
                 # Metric: P_est - P_empirical should be PSD for a conservative estimator!

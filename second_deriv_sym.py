@@ -64,7 +64,7 @@ print("\nAnalytical Second Derivatives\n")
 
 for name, rho in costs.items():
 
-    d2 = sp.diff(rho, r, 3)
+    d2 = sp.diff(rho, r, 2)
     d2 = sp.simplify(d2)
 
     second_derivatives[name] = d2
