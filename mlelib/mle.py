@@ -35,6 +35,10 @@ class MlSolution(BaseModel):
     x_seq : List[np.ndarray] = []
     P: np.ndarray
 
+class MlExperimentOutput(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    anees: np.ndarray
+
 class MaximumLikelihood:
 
     def __init__(self, params: MlParams):
@@ -141,7 +145,7 @@ class MaximumLikelihood:
 
         return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI))
     
-    def experiment(self, x_gt: np.ndarray, h: Callable, z_cov: np.ndarray, N: int = 1000, plot : bool = True):
+    def experiment(self, x_gt: np.ndarray, h: Callable, z_cov: np.ndarray, N: int = 1000, plot : bool = True) -> MlExperimentOutput:
         L = np.linalg.cholesky(z_cov)
         x_est_samples = np.zeros((self.__params.x0.shape[0], N))
         nees = np.zeros(N) # Normalized estimation error squared
@@ -182,3 +186,4 @@ class MaximumLikelihood:
             plot_cov(P_avg, mu_empirical, label="Avg Cov", color="blue")
             plt.legend()
             plt.show()
+        return MlExperimentOutput(anees=np.mean(nees))

@@ -3,6 +3,13 @@ from typing import Callable, Tuple, List
 import matplotlib.pyplot as plt
 
 from mlelib import MaximumLikelihood, MlParams
+from mlelib import valid
+from pydantic import BaseModel
+import yaml
+from argparse import ArgumentParser
+from typing import Optional, List
+
+# TODO: Make this file a class where we input noise and satellite locations!
 
 """
 Run experiment for three range measurements to show the effects of propagating noise in a nonlinear estimation
@@ -214,7 +221,26 @@ def plot_measurement_function(x: np.ndarray, M: int, N: int):
     plt.show()
 
 
-def main():
+class SatelliteLocation(BaseModel):
+    x: float
+    y: float
+
+
+class ValidityExperimentConfig(BaseModel):
+    x_range: Optional[List[float]] = [-10.0, 10.0]
+    y_range: Optional[List[float]] = [-10.0, 10.0]
+    range_resolution: Optional[int] = 100
+    satellite_locs: List[SatelliteLocation]
+    its_per_step: int = 100
+
+
+def main(args):
+
+    exp_params : ValidityExperimentConfig = None
+    with open(args.config, 'r') as f:
+        exp_params = ValidityExperimentConfig(**yaml.safe_load(f))
+
+    
     ml_params = MlParams(
         x0=np.zeros((2,1)),
         residual_generator=residual_generator,
@@ -250,4 +276,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = ArgumentParser("twod_range_validity")
+    parser.add_argument("--config", default='params/twod_range_validity.yaml')
+    main(parser.parse_args())
