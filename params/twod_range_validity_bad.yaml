@@ -1,0 +1,14 @@
+x_range: [-5.0, 5.0]
+y_range: [-5.0, 5.0]
+range_resolution: 20
+its_per_step: 1000
+initial_guess_stddev: 2.0
+model_params:
+  sat_locs:
+    - x: 0.0
+      y: 1.0
+    - x: -1.0
+      y: 1.0
+    - x: 0.0
+      y: 0.0
+  sat_range_stddev: 1.0

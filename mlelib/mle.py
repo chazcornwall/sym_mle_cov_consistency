@@ -4,12 +4,9 @@ from typing import Callable, Tuple, List
 from pydantic import BaseModel, ConfigDict, Field
 
 from mlelib.utils import plot_cov
+from mlelib.model import LikelihoodModel
 
-
-class MlParams(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    x0: np.ndarray = \
-        Field(description="Initial guess for the solution")
+'''
     residual_generator: Callable[[np.ndarray, np.ndarray], np.ndarray] = \
         Field(description="Returns the residual r(x) = z - h(x)")
     residual_jacobian_generator : Callable[[np.ndarray], np.ndarray] = \
@@ -22,6 +19,14 @@ class MlParams(BaseModel):
         Field(description="Partial derivative of rho(r(x)) with respect to r(x)")
     cost_function_hessian_generator : Callable[[np.ndarray], np.ndarray] = \
         Field(description="Hessian of cost function: d^2 rho(r) / (dr_i dr_j) Should be PSD and resembles the inverse of a covariance matrix")
+'''
+
+
+class MlParams(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    x0: np.ndarray = \
+        Field(description="Initial guess for the solution")
+    model: LikelihoodModel
     max_its: int = 100
     max_ls_its: int = 100
     min_x_diff: float = 1e-8
@@ -37,7 +42,8 @@ class MlSolution(BaseModel):
 
 class MlExperimentOutput(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    anees: np.ndarray
+    anees: float
+    cov_empirical: np.ndarray
 
 class MaximumLikelihood:
 
@@ -65,12 +71,12 @@ class MaximumLikelihood:
         # Extract functions and parameters for the Gauss-Newton iteration
         x_seq : List[np.ndarray] = []
         x = self.__params.x0
-        r = lambda z, x : self.__params.residual_generator(z, x)
-        J = lambda x : self.__params.residual_jacobian_generator(x)
-        g = lambda res : self.__params.cost_function_gradient_generator(res)
-        H = lambda res : self.__params.cost_function_hessian_generator(res)
-        Hresx = lambda res : self.__params.residual_hessian_generator(res)
-        rho = lambda res : self.__params.cost_function_generator(res)
+        r = lambda z, x : self.__params.model.residual_generator(z, x)
+        J = lambda x : self.__params.model.residual_jacobian_generator(x)
+        g = lambda res : self.__params.model.cost_gradient_generator(res)
+        H = lambda res : self.__params.model.cost_hessian_generator(res)
+        Hresx = lambda res : self.__params.model.residual_hessian_generator(res)
+        rho = lambda res : self.__params.model.cost_generator(res)
 
         x_seq.append(x)
         curr_i = 0
@@ -120,15 +126,14 @@ class MaximumLikelihood:
             print(f"WARNING: Did not converge within max iterations!")
         
         # According to the Cramer-Rao Lower Bound, all ML estimators approach a covariance of (FI)^-1
-
         FI_gn = J(x).T @ H(r(z, x)) @ J(x)
         FI_missing = np.zeros((x.shape[0], x.shape[0]))
         Hresx = Hresx(x)
         for i in range(z.shape[0]):
             FI_missing += Hresx[i,:,:] * g(r(z, x))[i,0]
-            print(f"tr(Hessian) {i}:\n {np.trace(Hresx[i,:,:].T @ Hresx[i,:,:])}")
-        print(f"Jacobian:\n {J(x)}")
-        print(f"Thresh: {3/(0.01*2) * np.linalg.norm(J(x)[0,:])**2 / (np.linalg.norm(x)**2  + np.trace(np.linalg.inv(FI)))}")
+        #     print(f"tr(Hessian) {i}:\n {np.trace(Hresx[i,:,:].T @ Hresx[i,:,:])}")
+        # print(f"Jacobian:\n {J(x)}")
+        # print(f"Thresh: {3/(0.01*2) * np.linalg.norm(J(x)[0,:])**2 / (np.linalg.norm(x)**2  + np.trace(np.linalg.inv(FI)))}")
 
         # if np.linalg.inv(FI)[0,0] > 50:
         # print(f"FI_missing: \n{FI_missing}")
@@ -143,7 +148,7 @@ class MaximumLikelihood:
 
         # print(f"cov psd test: {min(np.linalg.eigvals(Jxprev @ Jxprev.T - np.linalg.inv(Hres)))}")
 
-        return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI))
+        return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI_gn))
     
     def experiment(self, x_gt: np.ndarray, h: Callable, z_cov: np.ndarray, N: int = 1000, plot : bool = True) -> MlExperimentOutput:
         L = np.linalg.cholesky(z_cov)
@@ -152,6 +157,8 @@ class MaximumLikelihood:
         P_est_list : List = []
         P_avg = np.zeros((x_gt.shape[0], x_gt.shape[0]))
         z_mean = h(x_gt)
+
+        # Run the same estimation problem N times and collect data
         for i in range(N):
             z = z_mean + L @ np.random.randn(z_mean.shape[0], 1)
             sol = self.mle(z)
@@ -186,4 +193,4 @@ class MaximumLikelihood:
             plot_cov(P_avg, mu_empirical, label="Avg Cov", color="blue")
             plt.legend()
             plt.show()
-        return MlExperimentOutput(anees=np.mean(nees))
+        return MlExperimentOutput(anees=np.mean(nees), cov_empirical=P_empirical)

@@ -73,11 +73,24 @@ def valid(
     max_thresh = N / sigma2z
    
     if mode == 0:
-        return meas_thresh <= max_thresh, max_thresh - meas_thresh
+        if meas_thresh is None:
+            return False, np.nan
+        else:
+            return meas_thresh <= max_thresh, max_thresh - meas_thresh
     elif mode == 1:
-        return cost_thresh <= max_thresh, max_thresh - cost_thresh
+        if cost_thresh is None:
+            return False, np.nan
+        else:
+            return cost_thresh <= max_thresh, max_thresh - cost_thresh
     elif mode == 2:
-        max_meas_cost_thresh = max(meas_thresh, cost_thresh)
+        if meas_thresh is not None and cost_thresh is not None:
+            max_meas_cost_thresh = max(meas_thresh, cost_thresh)
+        elif meas_thresh is not None:
+            max_meas_cost_thresh = meas_thresh
+        elif cost_thresh is not None:
+            max_meas_cost_thresh = cost_thresh
+        else:
+            return False, np.nan
         return max_meas_cost_thresh <= max_thresh, max_thresh - max_meas_cost_thresh
     else:
         raise SyntaxError(f"Invalid mode! Mode must be 0,1,2")
