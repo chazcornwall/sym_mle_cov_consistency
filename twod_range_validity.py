@@ -18,6 +18,7 @@ class ValidityExperimentConfig(BaseModel):
     x_range: Optional[List[float]] = [-10.0, 10.0]
     y_range: Optional[List[float]] = [-10.0, 10.0]
     range_resolution: Optional[int] = 100
+    N_ind_meas: int = 1
     its_per_step: int = 100
     initial_guess_stddev: float = 3.0
     model_params: TwoDRangeModelParams
@@ -30,6 +31,10 @@ def main(args):
         exp_params = ValidityExperimentConfig(**yaml.safe_load(f))
 
     likelihood_model = TwoDRangeModel(exp_params.model_params)
+
+    nominal_likelihood_model_params : TwoDRangeModelParams = exp_params.model_params
+    nominal_likelihood_model_params.sat_range_stddev = 1.0
+    nominal_likelihood_model = TwoDRangeModel(nominal_likelihood_model_params)
 
     anees_array = np.zeros((exp_params.range_resolution, exp_params.range_resolution))
     valid_array = np.zeros((exp_params.range_resolution, exp_params.range_resolution))
@@ -45,28 +50,41 @@ def main(args):
         j, i, x, y = coord_tuple
         x_gt = np.array([[x, y]]).T
 
+        # Create random initial starting point for optimization
+        x0 = x_gt + exp_params.initial_guess_stddev * np.random.randn(2,1)
+
         # Evaluate estmator using same ground truth but with random initial points
-        ml_params = MlParams(
-            x0=np.array([[x_gt[0,0] + exp_params.initial_guess_stddev * np.random.randn(), 
-                          x_gt[1,0] + exp_params.initial_guess_stddev * np.random.randn()]]).T, 
+        ml_anees_params = MlParams(
+            x0=x0, 
             model=likelihood_model,
             max_its=10
         )
-        ml = MaximumLikelihood(ml_params)
-        output = ml.experiment(np.array([[x, y]]).T, likelihood_model.h, likelihood_model.S, N=exp_params.its_per_step, plot=False)
+        ml_anees = MaximumLikelihood(ml_anees_params)
+        output_anees = ml_anees.experiment(np.array([[x, y]]).T, likelihood_model.h, likelihood_model.S, N=exp_params.its_per_step, Nind=exp_params.N_ind_meas, plot=False)
 
-        # Calculate validity using gt
+        # Evaluate nominal estimator for validity calculations
+        # We do two implementations of the MLE because we need a nominal case and the baseline.
+        # Under normal conditions, we could just calculate the nominal once and then vary N and sigma_z
+        ml_nominal_params = MlParams(
+            x0=x0, 
+            model=nominal_likelihood_model,
+            max_its=10
+        )
+        ml_nominal = MaximumLikelihood(ml_nominal_params)
+        output_nominal = ml_nominal.experiment(np.array([[x, y]]).T, nominal_likelihood_model.h, nominal_likelihood_model.S, N=exp_params.its_per_step, Nind=1, plot=False)
+
+        # Calculate validity using gt and nominal likelihood
         validity_gap = np.inf
-        for n in range(likelihood_model.n):
-            J_i = likelihood_model.residual_jacobian_generator(x_gt)[n,:]
-            Jcal_i = likelihood_model.residual_hessian_generator(x_gt)[n,:,:]
-            Pz = likelihood_model.S
-            Nindmeas = n / 3
-            curr_validity_gap = valid(output.cov_empirical, 1.0, Nindmeas, mode=0, J_i=J_i, Jcal_i=Jcal_i)[1]
+        for k in range(nominal_likelihood_model.n):
+            J_i = nominal_likelihood_model.residual_jacobian_generator(x_gt)[k,:]
+            Jcal_i = nominal_likelihood_model.residual_hessian_generator(x_gt)[k,:,:]
+            Pz = nominal_likelihood_model.S
+            Nindmeas = nominal_likelihood_model.n / 3 * exp_params.N_ind_meas
+            curr_validity_gap = valid(output_nominal.cov_empirical, exp_params.model_params.sat_range_stddev**2, Nindmeas, mode=0, J_i=J_i, Jcal_i=Jcal_i)[1]
             if curr_validity_gap < validity_gap:
                 validity_gap = curr_validity_gap
 
-        return (i, j, output.anees, validity_gap)
+        return (i, j, output_anees.anees, validity_gap)
 
     results = Parallel(n_jobs=-1)(delayed(exp_cb)(i) for i in coords)
 

@@ -66,17 +66,38 @@ class MaximumLikelihood:
         $$
 
         where rho() is a non-negative cost function
+
+        When z is matrix, we assume measurements are independent
         '''
 
         # Extract functions and parameters for the Gauss-Newton iteration
         x_seq : List[np.ndarray] = []
         x = self.__params.x0
+        N = z.shape[1] # Number of independent measurements
+        n = z.shape[0]
+
         r = lambda z, x : self.__params.model.residual_generator(z, x)
         J = lambda x : self.__params.model.residual_jacobian_generator(x)
-        g = lambda res : self.__params.model.cost_gradient_generator(res)
-        H = lambda res : self.__params.model.cost_hessian_generator(res)
+
+        def g(res):
+            g_temp = np.zeros((n, 1))
+            for j in range(N):
+                g_temp += self.__params.model.cost_gradient_generator(res[:, [j]])
+            return g_temp
+
+        def H(res):
+            H_temp = np.zeros((n, n))
+            for j in range(N):
+                H_temp += self.__params.model.cost_hessian_generator(res[:, [j]])
+            return H_temp
+
+        def rho(res):
+            rho_temp = 0.0
+            for j in range(N):
+                rho_temp += self.__params.model.cost_generator(res[:, [j]])
+            return rho_temp
+
         Hresx = lambda res : self.__params.model.residual_hessian_generator(res)
-        rho = lambda res : self.__params.model.cost_generator(res)
 
         x_seq.append(x)
         curr_i = 0
@@ -127,10 +148,10 @@ class MaximumLikelihood:
         
         # According to the Cramer-Rao Lower Bound, all ML estimators approach a covariance of (FI)^-1
         FI_gn = J(x).T @ H(r(z, x)) @ J(x)
-        FI_missing = np.zeros((x.shape[0], x.shape[0]))
-        Hresx = Hresx(x)
-        for i in range(z.shape[0]):
-            FI_missing += Hresx[i,:,:] * g(r(z, x))[i,0]
+        # FI_missing = np.zeros((x.shape[0], x.shape[0]))
+        # Hresx = Hresx(x)
+        # for i in range(z.shape[0]):
+        #     FI_missing += Hresx[i,:,:] * g(r(z, x))[i,0]
         #     print(f"tr(Hessian) {i}:\n {np.trace(Hresx[i,:,:].T @ Hresx[i,:,:])}")
         # print(f"Jacobian:\n {J(x)}")
         # print(f"Thresh: {3/(0.01*2) * np.linalg.norm(J(x)[0,:])**2 / (np.linalg.norm(x)**2  + np.trace(np.linalg.inv(FI)))}")
@@ -150,7 +171,7 @@ class MaximumLikelihood:
 
         return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI_gn))
     
-    def experiment(self, x_gt: np.ndarray, h: Callable, z_cov: np.ndarray, N: int = 1000, plot : bool = True) -> MlExperimentOutput:
+    def experiment(self, x_gt: np.ndarray, h: Callable, z_cov: np.ndarray, N: int = 1000, Nind: int = 1, plot : bool = True) -> MlExperimentOutput:
         L = np.linalg.cholesky(z_cov)
         x_est_samples = np.zeros((self.__params.x0.shape[0], N))
         nees = np.zeros(N) # Normalized estimation error squared
@@ -160,7 +181,7 @@ class MaximumLikelihood:
 
         # Run the same estimation problem N times and collect data
         for i in range(N):
-            z = z_mean + L @ np.random.randn(z_mean.shape[0], 1)
+            z = z_mean + L @ np.random.randn(z_mean.shape[0], Nind)
             sol = self.mle(z)
             if i == 0:
                 P_avg = sol.P

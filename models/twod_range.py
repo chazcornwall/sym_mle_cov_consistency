@@ -39,7 +39,7 @@ class TwoDRangeModel(LikelihoodModel):
         return self.__Sats[:, [i]] 
 
     @property
-    def n(self) -> np.ndarray:
+    def n(self) -> int:
         return self.__n
 
     @property
