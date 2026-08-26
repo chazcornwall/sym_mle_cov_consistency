@@ -1,9 +1,10 @@
+name: meas_sparse
 x_range: [-5.0, 5.0]
 y_range: [-5.0, 5.0]
 range_resolution: 20
 its_per_step: 1000
-N_ind_meas: 1
-initial_guess_stddev: 2.0
+N_ind_meas: 5
+initial_guess_stddev: 0.5
 model_params:
   sat_locs:
     - x: 0.0
@@ -12,4 +13,4 @@ model_params:
       y: 2.0
     - x: -5.0
       y: -2.0
-  sat_range_stddev: 1.0
+  sat_range_stddev: 0.2
