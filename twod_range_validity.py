@@ -37,6 +37,7 @@ def main(args):
     nominal_likelihood_model = TwoDRangeModel(nominal_likelihood_model_params)
 
     anees_array = np.zeros((exp_params.range_resolution, exp_params.range_resolution))
+    bias_array = np.zeros((exp_params.range_resolution, exp_params.range_resolution))
     valid_array = np.zeros((exp_params.range_resolution, exp_params.range_resolution))
 
     # Create list of all possible coordinates where we wish to evaluate ANEES
@@ -65,34 +66,39 @@ def main(args):
         # Evaluate nominal estimator for validity calculations
         # We do two implementations of the MLE because we need a nominal case and the baseline.
         # Under normal conditions, we could just calculate the nominal once and then vary N and sigma_z
-        ml_nominal_params = MlParams(
-            x0=x0, 
-            model=nominal_likelihood_model,
-            max_its=10
-        )
-        ml_nominal = MaximumLikelihood(ml_nominal_params)
-        output_nominal = ml_nominal.experiment(np.array([[x, y]]).T, nominal_likelihood_model.h, nominal_likelihood_model.S, N=exp_params.its_per_step, Nind=1, plot=False)
+        # ml_nominal_params = MlParams(
+        #     x0=x0, 
+        #     model=nominal_likelihood_model,
+        #     max_its=10
+        # )
+        # ml_nominal = MaximumLikelihood(ml_nominal_params)
+        # output_nominal = ml_nominal.experiment(np.array([[x, y]]).T, nominal_likelihood_model.h, nominal_likelihood_model.S, N=exp_params.its_per_step, Nind=1, plot=False)
 
         # Calculate validity using gt and nominal likelihood
         validity_gap = np.inf
+        J = nominal_likelihood_model.residual_jacobian_generator(x_gt)
+        H0 = nominal_likelihood_model.cost_hessian_generator(np.zeros((nominal_likelihood_model.n, 1)))
+        Fbarinv = np.linalg.inv(J.T @ H0 @ J)
+        Pz = nominal_likelihood_model.S
+        Nindmeas = nominal_likelihood_model.n / 3 * exp_params.N_ind_meas
         for k in range(nominal_likelihood_model.n):
-            J_i = nominal_likelihood_model.residual_jacobian_generator(x_gt)[k,:]
             Jcal_i = nominal_likelihood_model.residual_hessian_generator(x_gt)[k,:,:]
-            Pz = nominal_likelihood_model.S
-            Nindmeas = nominal_likelihood_model.n / 3 * exp_params.N_ind_meas
-            curr_validity_gap = valid(output_nominal.cov_empirical, exp_params.model_params.sat_range_stddev**2, Nindmeas, mode=0, J_i=J_i, Jcal_i=Jcal_i)[1]
+            if abs(x_gt[0,0]) < 2 and abs(x_gt[1,0]) < 1.5:
+                print(f"At {x_gt}, Jcal_i: \n {Jcal_i}")
+            curr_validity_gap = valid(Fbarinv, exp_params.model_params.sat_range_stddev**2, Nindmeas, mode=0, J_i=J[k,:], Jcal_i=Jcal_i)[1]
             if curr_validity_gap < validity_gap:
                 validity_gap = curr_validity_gap
 
-        return (i, j, output_anees.anees, validity_gap)
+        return (i, j, np.log(output_anees.anees / 2), validity_gap, output_anees.bias_norm)
 
-    results = Parallel(n_jobs=-1)(delayed(exp_cb)(i) for i in coords)
+    results = Parallel(n_jobs=-1, verbose=True)(delayed(exp_cb)(i) for i in coords)
 
     # Store results in array
     for result in results:
-        i, j, anees, gap = result
+        i, j, anees, gap, bias = result
         anees_array[i, j] = anees
         valid_array[i, j] = gap
+        bias_array[i, j] = bias
 
     if exp_params.range_resolution > 1:
         step_size = (exp_params.x_range[1] - exp_params.x_range[0]) / (exp_params.range_resolution - 1)
@@ -101,10 +107,10 @@ def main(args):
     print(f"stepsize: {step_size}")
     extent = [exp_params.x_range[0] - step_size/2, exp_params.x_range[1] + step_size/2, exp_params.y_range[0] - step_size/2, exp_params.y_range[1] + step_size/2]
 
-    fig, ax = plt.subplots(nrows=1, ncols=2)
+    fig, ax = plt.subplots(nrows=1, ncols=3)
 
     # Plot ANEES
-    im = ax[0].imshow(anees_array, extent=extent, aspect='auto', origin='lower', norm=colors.LogNorm(vmin=1, vmax=1000))
+    im = ax[0].imshow(anees_array, extent=extent, aspect='auto', origin='lower')
 
     # Plot satellites
     ax[0].scatter(likelihood_model.Sats[0,:], likelihood_model.Sats[1,:], c='red', label='Satellites')
@@ -116,18 +122,31 @@ def main(args):
     ax[0].set_ylabel("Meters")
     ax[0].legend()
 
-    # Plot Validity Gap
-    im = ax[1].imshow(valid_array, extent=extent, aspect='auto', origin='lower')
+    # Plot bias
+    im = ax[1].imshow(bias_array, extent=extent, aspect='auto', origin='lower')
 
     # Plot satellites
     ax[1].scatter(likelihood_model.Sats[0,:], likelihood_model.Sats[1,:], c='red', label='Satellites')
     
     # 3. Add a colorbar to see the scale
     fig.colorbar(im)
-    ax[1].set_title("Valdidity Gap over Operation Domain")
+    ax[1].set_title("Bias over Operation Domain")
     ax[1].set_xlabel("Meters")
     ax[1].set_ylabel("Meters")
     ax[1].legend()
+
+    # Plot Validity Gap
+    im = ax[2].imshow(valid_array, extent=extent, aspect='auto', origin='lower')
+
+    # Plot satellites
+    ax[2].scatter(likelihood_model.Sats[0,:], likelihood_model.Sats[1,:], c='red', label='Satellites')
+    
+    # 3. Add a colorbar to see the scale
+    fig.colorbar(im)
+    ax[2].set_title("Valdidity Gap over Operation Domain")
+    ax[2].set_xlabel("Meters")
+    ax[2].set_ylabel("Meters")
+    ax[2].legend()
 
     res_p = stats.pearsonr(anees_array.flatten(), valid_array.flatten())
     print(f"Correlation between ANEES and Validity Gap:\n\tPearson: {res_p.statistic}, p-value: {res_p.pvalue}")

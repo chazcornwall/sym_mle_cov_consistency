@@ -72,7 +72,7 @@ class TwoDRangeModel(LikelihoodModel):
         I = np.eye(x.shape[0])
         for i in range(self.__n):
             si = self.__s(i)
-            JHess[[i], :, :] = 1 / hx[i,0] * (I - (x - si) @ (x - si).T / hx[i,0]**3)
+            JHess[[i], :, :] = 1 / hx[i,0] * (I - (x - si) @ (x - si).T / hx[i,0]**2)
         return JHess
 
     def cost_generator(self, res):

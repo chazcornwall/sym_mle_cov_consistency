@@ -44,6 +44,7 @@ class MlExperimentOutput(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     anees: float
     cov_empirical: np.ndarray
+    bias_norm: float 
 
 class MaximumLikelihood:
 
@@ -130,6 +131,7 @@ class MaximumLikelihood:
                     break 
 
             if j + 1 >= self.__params.max_ls_its:
+                x = x_prev # Do not use a worst solution!
                 print(f"WARNING: Could not find cost-reducing line search!")
 
             if verbose:
@@ -193,10 +195,10 @@ class MaximumLikelihood:
                 P_est_list.append(sol.P)
 
         # Average normalized estimation error squared. Should be number of dimensions in state
-        print(f"ANEES: {np.mean(nees)}")
+        # print(f"ANEES: {np.mean(nees)}")
         print(f"E[xhat - xgt]: {np.mean(x_est_samples - x_gt, axis=1)}")
         P_empirical = np.cov(x_est_samples)
-        print(f"Var(xhat): \n {P_empirical}")
+        # print(f"Var(xhat): \n {P_empirical}")
         
         if plot:
             mu_empirical = np.array([np.mean(x_est_samples, 1)]).T
@@ -214,4 +216,4 @@ class MaximumLikelihood:
             plot_cov(P_avg, mu_empirical, label="Avg Cov", color="blue")
             plt.legend()
             plt.show()
-        return MlExperimentOutput(anees=np.mean(nees), cov_empirical=P_empirical)
+        return MlExperimentOutput(anees=np.mean(nees), cov_empirical=P_empirical, bias_norm=np.mean(np.linalg.norm(x_est_samples - x_gt, axis=0)))
