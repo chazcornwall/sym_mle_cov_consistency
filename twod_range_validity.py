@@ -14,9 +14,12 @@ from mlelib import valid
 
 from models.twod_range import TwoDRangeModel, TwoDRangeModelParams
 
+plt.rcParams.update({'font.size': 16})
+
 
 class ValidityExperimentConfig(BaseModel):
     name: str
+    save_plot_dir: Optional[str] = "figs"
     save_plot: Optional[bool] = False
     x_range: Optional[List[float]] = [-10.0, 10.0]
     y_range: Optional[List[float]] = [-10.0, 10.0]
@@ -114,14 +117,14 @@ def main(args):
     print(f"stepsize: {step_size}")
     extent = [exp_params.x_range[0] - step_size/2, exp_params.x_range[1] + step_size/2, exp_params.y_range[0] - step_size/2, exp_params.y_range[1] + step_size/2]
 
-    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(18, 4))
-    create_heatmap(fig, ax[0], anees_array, extent, "ANEES over Operation Domain", likelihood_model.Sats)
+    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(20, 5))
+    create_heatmap(fig, ax[0], anees_array, extent, "lnANEES over Operation Domain", likelihood_model.Sats)
     create_heatmap(fig, ax[1], rmse_array, extent, "RMSE over Operation Domain", likelihood_model.Sats)
     create_heatmap(fig, ax[2], valid_array, extent, "VG over Operation Domain", likelihood_model.Sats)
 
     # Print Pearson correlations and corresponding p values
     res_anees_p = stats.pearsonr(anees_array.flatten(), valid_array.flatten())
-    print(f"Pearson's Correlation between ANEES and Validity Gap:\n\tPearson: {res_anees_p.statistic}, p-value: {res_anees_p.pvalue}")
+    print(f"Pearson's Correlation between lnANEES and Validity Gap:\n\tPearson: {res_anees_p.statistic}, p-value: {res_anees_p.pvalue}")
 
     res_rmse_p = stats.pearsonr(rmse_array.flatten(), valid_array.flatten())
     print(f"Pearson's Correlation between RMSE and Validity Gap:\n\tPearson: {res_rmse_p.statistic}, p-value: {res_rmse_p.pvalue}")
@@ -129,7 +132,7 @@ def main(args):
     if exp_params.save_plot:
         now = datetime.now()
         filename = exp_params.name + "_" + now.strftime("%Y%m%d_%H%M%S") + ".png"
-        plt.savefig(filename, bbox_inches="tight")
+        plt.savefig("figs/" + filename, bbox_inches="tight")
 
     plt.tight_layout() 
     plt.show()
