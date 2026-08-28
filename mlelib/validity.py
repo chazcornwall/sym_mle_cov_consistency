@@ -60,26 +60,37 @@ def valid(
         J_i_norm = np.linalg.norm(J_i, 2) 
         if abs(J_i_norm) > 1e-8:
             Lambda_i = np.linalg.norm(Jcal_i, 'fro') / np.linalg.norm(J_i, 2)
-            meas_thresh = np.trace(Fbarinv) * Lambda_i
+            meas_thresh = sigma2z / N * np.trace(Fbarinv)**2 * np.linalg.norm(Jcal_i, 'fro')**2 / (J_i.T @ Fbarinv @ J_i)
+            # meas_thresh = np.trace(Fbarinv) * Lambda_i
+        # If J_i_norm is zero, then Jcal_i will be zero, satisfying sufficient condition for validity!
 
     if mode != 0:
         Hcal_i_norm = np.linalg.norm(Hcal_i, 2)
         if abs(Hcal_i_norm) > 1e-8:
-            Psi_i = np.linalg.norm(Hbold_i, 'fro') / np.linalg.norm(Hcal_i, 2)
-            denom = 1.0 - Psi_i * (np.trace(Pz) - np.linalg.norm(rstar, 2))
-            if abs(denom) > 1e-8:
-                cost_thresh = np.trace(Fbarinv) * np.linalg.norm(J, 'fro') * Psi_i / denom 
+            Pr = sigma2z / N * J @ Fbarinv @ J.T + Pz
+            print(f"Hbold_i: {Hbold_i}")
+            print(f"Hcal_i: {Hcal_i}")
+            # Psi_i = np.linalg.norm(Hbold_i, 'fro') / np.linalg.norm(Hcal_i, 2)
+            # denom = 1.0 - Psi_i * (np.trace(Pz) - np.linalg.norm(rstar, 2))
+            # if abs(denom) > 1e-8:
+                # cost_thresh = np.trace(Fbarinv) * np.linalg.norm(J, 'fro') * Psi_i / denom 
+            cost_thresh = np.trace(Pr) * (np.trace(Pr) + np.linalg.norm(rstar, 2)**2) * np.linalg.norm(Hbold_i, 'fro')**2 / (Hcal_i.T @ Pr @ Hcal_i) 
+        # If Hcal_i_norm is zero, then Hbold_i will be zero, satisfying sufficient condition for validity!
 
-    max_thresh = N / sigma2z
+    max_thresh = 1 # N / sigma2z
+
+    print(f"Max thresh: {max_thresh}")
+    print(f"Meas thresh: {meas_thresh}")
+    print(f"Cost thresh: {cost_thresh}")
    
     if mode == 0:
         if meas_thresh is None:
-            return False, np.nan
+            return True, np.nan
         else:
             return meas_thresh <= max_thresh, max_thresh - meas_thresh
     elif mode == 1:
         if cost_thresh is None:
-            return False, np.nan
+            return True, np.nan
         else:
             return cost_thresh <= max_thresh, max_thresh - cost_thresh
     elif mode == 2:
@@ -90,7 +101,7 @@ def valid(
         elif cost_thresh is not None:
             max_meas_cost_thresh = cost_thresh
         else:
-            return False, np.nan
+            return True, np.nan
         return max_meas_cost_thresh <= max_thresh, max_thresh - max_meas_cost_thresh
     else:
         raise SyntaxError(f"Invalid mode! Mode must be 0,1,2")

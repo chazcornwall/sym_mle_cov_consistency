@@ -16,7 +16,7 @@ def test_mle_unbiased():
     x_gt = np.array([[1.0, 1.0]]).T
 
     # Create random initial starting point for optimization
-    x0 = x_gt + 0.00 * np.random.randn(2,1)
+    x0 = x_gt + 1.0 * np.random.randn(2,1)
 
     # Evaluate estmator using same ground truth but with random initial points
     ml_params = MlParams(

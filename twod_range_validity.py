@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Callable, Tuple, List, Optional
+from typing import Callable, Tuple, List, Optional, Dict
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from scipy import stats
@@ -9,10 +9,13 @@ from argparse import ArgumentParser
 from joblib import Parallel, delayed
 from datetime import datetime
 
+# Import custom library for maximum likelihood estimation
 from mlelib import MaximumLikelihood, MlParams, MlExperimentOutput
 from mlelib import valid
 
+# Import possible models
 from models.twod_range import TwoDRangeModel, TwoDRangeModelParams
+from models.twod_range_huber import TwoDRangeModelHuber, TwoDRangeModelHuberParams
 
 plt.rcParams.update({'font.size': 16})
 
@@ -27,7 +30,8 @@ class ValidityExperimentConfig(BaseModel):
     N_ind_meas: int = 1
     its_per_step: int = 100
     initial_guess_stddev: float = 3.0
-    model_params: TwoDRangeModelParams
+    model_name: str
+    model_params: Dict 
 
 
 def create_heatmap(fig, ax, array: np.ndarray, extent: List[float], title: str, sats: np.ndarray):
@@ -49,12 +53,25 @@ def main(args):
     with open(args.config, 'r') as f:
         exp_params = ValidityExperimentConfig(**yaml.safe_load(f))
 
-    likelihood_model = TwoDRangeModel(exp_params.model_params)
+    # Load in the correct likelihood model depending on parameter files
+    if exp_params.model_name == "twod_range":
+        likelihood_model_params = TwoDRangeModelParams(**exp_params.model_params)
+        likelihood_model = TwoDRangeModel(likelihood_model_params)
 
-    # Create nominal likelihood model for calculating nominal covarinace in validity gap
-    nominal_likelihood_model_params : TwoDRangeModelParams = exp_params.model_params
-    nominal_likelihood_model_params.sat_range_stddev = 1.0
-    nominal_likelihood_model = TwoDRangeModel(nominal_likelihood_model_params)
+        # Create nominal likelihood model for calculating nominal covarinace in validity gap
+        nominal_likelihood_model_params = TwoDRangeModelParams(**exp_params.model_params)
+        nominal_likelihood_model_params.sat_range_stddev = 1.0
+        nominal_likelihood_model = TwoDRangeModel(nominal_likelihood_model_params)
+    elif exp_params.model_name == "twod_range_huber":
+        likelihood_model_params = TwoDRangeModelHuberParams(**exp_params.model_params)
+        likelihood_model = TwoDRangeModelHuber(likelihood_model_params)
+
+        # Create nominal likelihood model for calculating nominal covarinace in validity gap
+        nominal_likelihood_model_params = TwoDRangeModelHuberParams(**exp_params.model_params)
+        nominal_likelihood_model_params.sat_range_stddev = 1.0
+        nominal_likelihood_model = TwoDRangeModelHuber(nominal_likelihood_model_params)
+    else:
+        raise ValueError(f"Invalid model name!")
 
     anees_array = np.zeros((exp_params.range_resolution, exp_params.range_resolution))
     rmse_array = np.zeros((exp_params.range_resolution, exp_params.range_resolution))
@@ -66,7 +83,7 @@ def main(args):
         for i, y in enumerate(np.linspace(exp_params.y_range[0], exp_params.y_range[1], num=exp_params.range_resolution)):
             coords.append((j, i, x, y))
 
-    # Parallel for loop callback
+    # Callback for parallel for loop 
     def exp_cb(coord_tuple):
         j, i, x, y = coord_tuple
         x_gt = np.array([[x, y]]).T
@@ -87,6 +104,9 @@ def main(args):
         J = nominal_likelihood_model.residual_jacobian_generator(x_gt)
         Jcal = nominal_likelihood_model.residual_hessian_generator(x_gt)
         H0 = nominal_likelihood_model.cost_hessian_generator(np.zeros((nominal_likelihood_model.n, 1)))
+        rstar = np.zeros((nominal_likelihood_model.n, 1))
+        Hbold = nominal_likelihood_model.cost_deriv_hessian_generator(rstar)
+        Hcal = nominal_likelihood_model.cost_hessian_generator(rstar)
         Fbarinv = np.linalg.inv(J.T @ H0 @ J)
         Pz = nominal_likelihood_model.S
         Nindmeas = nominal_likelihood_model.n / 3 * exp_params.N_ind_meas
@@ -94,7 +114,7 @@ def main(args):
         # Calculate validity using gt and nominal likelihood
         validity_gap = np.inf
         for k in range(nominal_likelihood_model.n):
-            curr_validity_gap = valid(Fbarinv, exp_params.model_params.sat_range_stddev**2, Nindmeas, mode=0, J_i=J[k,:], Jcal_i=Jcal[k,:,:])[1]
+            curr_validity_gap = valid(Fbarinv, likelihood_model_params.sat_range_stddev**2, Nindmeas, mode=1, J_i=J[k,:], J=J, Jcal_i=Jcal[k,:,:], Hbold_i=Hbold[k,:,:], Hcal_i=Hcal[k,:], Pz=Pz, rstar=rstar)[1]
             if curr_validity_gap < validity_gap:
                 validity_gap = curr_validity_gap
 

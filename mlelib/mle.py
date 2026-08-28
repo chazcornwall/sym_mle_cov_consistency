@@ -180,10 +180,13 @@ class MaximumLikelihood:
         P_est_list : List = []
         P_avg = np.zeros((x_gt.shape[0], x_gt.shape[0]))
         z_mean = h(x_gt)
+        z_extent = 4 * np.sqrt(z_cov[0,0]) * np.ones(z_mean.shape)
 
         # Run the same estimation problem N times and collect data
         for i in range(N):
-            z = z_mean + L @ np.random.randn(z_mean.shape[0], Nind)
+            z = np.zeros((z_mean.shape[0], Nind))
+            for k in range(Nind):
+                z[:,[k]] = self.__params.model.sample(x_gt, z_mean - z_extent, z_mean + z_extent) # z_mean + L @ np.random.randn(z_mean.shape[0], Nind)
             sol = self.mle(z)
             if i == 0:
                 P_avg = sol.P
