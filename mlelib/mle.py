@@ -219,4 +219,4 @@ class MaximumLikelihood:
             plot_cov(P_avg, mu_empirical, label="Avg Cov", color="blue")
             plt.legend()
             plt.show()
-        return MlExperimentOutput(anees=np.mean(nees), cov_empirical=P_empirical, rmse=np.sqrt(np.mean(np.linalg.norm(x_est_samples - x_gt, axis=0)**2)))
+        return MlExperimentOutput(anees=np.mean(nees), cov_empirical=P_empirical, rmse=np.linalg.norm(np.mean(x_est_samples - x_gt, axis=1)))

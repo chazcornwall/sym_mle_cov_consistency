@@ -30,6 +30,7 @@ class ValidityExperimentConfig(BaseModel):
     N_ind_meas: int = 1
     its_per_step: int = 100
     initial_guess_stddev: float = 3.0
+    validity_mode: Optional[int] = 2 # 0 for meas, 1 for cost, 2 for both
     model_name: str
     model_params: Dict 
 
@@ -62,6 +63,7 @@ def main(args):
         nominal_likelihood_model_params = TwoDRangeModelParams(**exp_params.model_params)
         nominal_likelihood_model_params.sat_range_stddev = 1.0
         nominal_likelihood_model = TwoDRangeModel(nominal_likelihood_model_params)
+        rstar = np.zeros((nominal_likelihood_model.n, 1))
     elif exp_params.model_name == "twod_range_huber":
         likelihood_model_params = TwoDRangeModelHuberParams(**exp_params.model_params)
         likelihood_model = TwoDRangeModelHuber(likelihood_model_params)
@@ -70,6 +72,7 @@ def main(args):
         nominal_likelihood_model_params = TwoDRangeModelHuberParams(**exp_params.model_params)
         nominal_likelihood_model_params.sat_range_stddev = 1.0
         nominal_likelihood_model = TwoDRangeModelHuber(nominal_likelihood_model_params)
+        rstar = np.sqrt(nominal_likelihood_model_params.delta/nominal_likelihood_model.n) * np.ones((nominal_likelihood_model.n, 1))
     else:
         raise ValueError(f"Invalid model name!")
 
@@ -104,7 +107,6 @@ def main(args):
         J = nominal_likelihood_model.residual_jacobian_generator(x_gt)
         Jcal = nominal_likelihood_model.residual_hessian_generator(x_gt)
         H0 = nominal_likelihood_model.cost_hessian_generator(np.zeros((nominal_likelihood_model.n, 1)))
-        rstar = np.zeros((nominal_likelihood_model.n, 1))
         Hbold = nominal_likelihood_model.cost_deriv_hessian_generator(rstar)
         Hcal = nominal_likelihood_model.cost_hessian_generator(rstar)
         Fbarinv = np.linalg.inv(J.T @ H0 @ J)
@@ -114,7 +116,7 @@ def main(args):
         # Calculate validity using gt and nominal likelihood
         validity_gap = np.inf
         for k in range(nominal_likelihood_model.n):
-            curr_validity_gap = valid(Fbarinv, likelihood_model_params.sat_range_stddev**2, Nindmeas, mode=1, J_i=J[k,:], J=J, Jcal_i=Jcal[k,:,:], Hbold_i=Hbold[k,:,:], Hcal_i=Hcal[k,:], Pz=Pz, rstar=rstar)[1]
+            curr_validity_gap = valid(Fbarinv, likelihood_model_params.sat_range_stddev**2, Nindmeas, mode=exp_params.validity_mode, J_i=J[k,:], J=J, Jcal_i=Jcal[k,:,:], Hbold_i=Hbold[k,:,:], Hcal_i=Hcal[k,:], Pz=Pz, rstar=rstar)[1]
             if curr_validity_gap < validity_gap:
                 validity_gap = curr_validity_gap
 

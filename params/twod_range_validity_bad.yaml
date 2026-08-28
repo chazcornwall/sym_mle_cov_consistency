@@ -6,6 +6,7 @@ range_resolution: 20
 its_per_step: 1000
 N_ind_meas: 5
 initial_guess_stddev: 0.5
+validity_mode: 0
 model_name: twod_range
 model_params:
   sat_locs:
