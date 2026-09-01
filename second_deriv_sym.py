@@ -9,6 +9,10 @@ import matplotlib.pyplot as plt
 
 r = sp.symbols('r', real=True)
 delta = sp.symbols('delta', positive=True)
+sigma = sp.symbols('sigma', positive=True)
+x = sp.symbols('x', real=True)
+
+# r = x # /sigma
 
 # ============================================================
 # Robust Cost Functions
@@ -17,7 +21,7 @@ delta = sp.symbols('delta', positive=True)
 costs = {}
 
 # 1. Quadratic
-costs["Quadratic"] = sp.Rational(1, 2) * r**2
+costs["Quadratic"] = sp.Rational(1, 2) * (r)**2
 
 # 2. Huber
 costs["Huber"] = sp.Piecewise(
@@ -67,12 +71,16 @@ for name, rho in costs.items():
     d2 = sp.diff(rho, r, 2)
     d2 = sp.simplify(d2)
 
+    d4 = sp.diff(rho, r, 4)
+    solutions = sp.solve(d4, r**2)
+
     second_derivatives[name] = d2
 
     print("="*60)
     print(name)
     print("="*60)
     sp.pprint(d2)
+    sp.pprint(solutions)
     print()
 
 # ============================================================

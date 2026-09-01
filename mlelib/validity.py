@@ -1,6 +1,36 @@
 import numpy as np
 from typing import Tuple
 
+
+def calc_rstar(sigmar: float, delta: float, n: int, cost: str = "quadratic") -> np.array:
+    """
+    Calculates r^* or the linearization point for cost function validity.
+    rstar is selected such that rstar's magnitude occurs at an inflection point of
+    the cost function's second derivative.
+
+    Params
+    ------
+    sigmar : float
+        Weight parameter for the residual
+    delta : float
+        Parameter of robust cost function such that delta -> infty implies a quadratic cost
+    n : int
+        Number of elements in a measurement vector
+    cost : str
+        Name of cost function. Options are: "quadratic", "pseudohuber", "cauchy"
+    """
+    if cost == "quadratic":
+        rstar_magnitude = 0.0
+    elif cost == "pseudohuber":
+        rstar_magnitude = sigmar * delta / 2
+    elif cost == "cauchy":
+        rstar_magnitude = sigmar * delta * (np.sqrt(2) - 1)
+    else:
+        raise ValueError(f"cost function {cost} is not available!")
+
+    return np.sqrt(rstar_magnitude / n) * np.ones((n,1))
+
+
 def valid(
         Fbarinv : np.ndarray, 
         sigma2z : float, 
