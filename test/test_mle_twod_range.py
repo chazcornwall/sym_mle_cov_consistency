@@ -13,7 +13,7 @@ def test_mle_unbiased():
     params = TwoDRangeModelParams(sat_locs=sat_locs, sat_range_stddev=2.0)
     likelihood_model = TwoDRangeModel(params)
 
-    x_gt = np.array([[1.0, 1.0]]).T
+    x_gt = np.array([[0, 0.0]]).T
 
     # Create random initial starting point for optimization
     x0 = x_gt + 1.0 * np.random.randn(2,1)

@@ -119,10 +119,16 @@ class MaximumLikelihood:
 
             # Update damping factor using line search
             alpha = self.__params.alpha0
+            singular = False
             for j in range(self.__params.max_ls_its):
 
                 # Solve the following equation: J.T @ H @ J @ (x - x_prev) = -J.T @ g(res)
-                x = x_prev + alpha * np.linalg.solve(FI, grad)
+                try:
+                    x = x_prev + alpha * np.linalg.solve(FI, grad)
+                    np.linalg.inv(FI)
+                except np.linalg.LinAlgError:
+                    singular = True
+                    x = x_prev + 2 * (np.random.rand(2,1) - 0.5) # Generate a new random point that is not singular!
 
                 # Once we find a good damping factor, keep going!
                 if (rho(res) < rho(r(z, x))):
@@ -131,9 +137,11 @@ class MaximumLikelihood:
                     break 
 
             if j + 1 >= self.__params.max_ls_its:
-                x = x_prev # Do not use a worst solution!
-                print(f"WARNING: Could not find cost-reducing line search!")
-
+                if verbose:
+                    print(f"WARNING: Could not find cost-reducing line search!")
+                if not singular:
+                    x = np.copy(x_prev) # Do not use a worst solution!
+                    
             if verbose:
                 print(f"After it: {i+1}")
                 print(f"\talpha: {alpha}")
@@ -150,6 +158,9 @@ class MaximumLikelihood:
         
         # According to the Cramer-Rao Lower Bound, all ML estimators approach a covariance of (FI)^-1
         FI_gn = J(x).T @ H(r(z, x)) @ J(x)
+        # evals = np.linalg.eigvals(FI_gn)
+        # if np.any(evals < 1e-3):
+        #     print(FI_gn)
         # FI_missing = np.zeros((x.shape[0], x.shape[0]))
         # Hresx = Hresx(x)
         # for i in range(z.shape[0]):
@@ -162,16 +173,14 @@ class MaximumLikelihood:
         # print(f"FI_missing: \n{FI_missing}")
         # print(f"FI_gn: \n{FI_gn}")
 
-        # print(f"{min(np.linalg.eigvals(2*H(r(z, x)) - g(r(z, x)) @ g(r(z, x)).T))}")
+        try:
+            P = np.linalg.inv(FI_gn)
+        except np.linalg.LinAlgError:
+            if verbose:
+                print(f"WARNING: FI is singular, e.g. minimum is not smooth! Assigning P as NaN!")
+            P = np.full((x.shape[0], x.shape[0]), np.nan)
 
-        # for i in range(x.shape[0]):
-        #     for j in range(x.shape[0]):
-        #         Proj = np.eye(z.shape[0]) - J(x) @ np.linalg.inv(J(x).T @ J(x)) @ J(x).T
-                # print(Proj @ np.array([Hresx[:,i,j]]).T)
-
-        # print(f"cov psd test: {min(np.linalg.eigvals(Jxprev @ Jxprev.T - np.linalg.inv(Hres)))}")
-
-        return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=np.linalg.inv(FI_gn))
+        return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=P)
     
     def experiment(self, x_gt: np.ndarray, h: Callable, z_cov: np.ndarray, N: int = 1000, Nind: int = 1, plot : bool = True) -> MlExperimentOutput:
         L = np.linalg.cholesky(z_cov)
@@ -180,7 +189,7 @@ class MaximumLikelihood:
         P_est_list : List = []
         P_avg = np.zeros((x_gt.shape[0], x_gt.shape[0]))
         z_mean = h(x_gt)
-        z_extent = 4 * np.sqrt(z_cov[0,0]) * np.ones(z_mean.shape)
+        z_extent = 5 * np.sqrt(z_cov[0,0]) * np.ones(z_mean.shape)
 
         # Run the same estimation problem N times and collect data
         for i in range(N):
@@ -193,7 +202,10 @@ class MaximumLikelihood:
             else:
                 P_avg = 1/(i+1) * sol.P + i/(i+1) * P_avg
             x_est_samples[:, [i]] = sol.x
-            nees[i] = ((sol.x - x_gt).T @ np.linalg.inv(sol.P) @ (sol.x - x_gt))[0,0]
+            try:
+                nees[i] = ((sol.x - x_gt).T @ np.linalg.inv(sol.P) @ (sol.x - x_gt))[0,0]
+            except np.linalg.LinAlgError:
+                nees[i] = np.nan
             if i % int(N / 10 + 0.5) == 0:
                 P_est_list.append(sol.P)
 
@@ -219,4 +231,4 @@ class MaximumLikelihood:
             plot_cov(P_avg, mu_empirical, label="Avg Cov", color="blue")
             plt.legend()
             plt.show()
-        return MlExperimentOutput(anees=np.mean(nees), cov_empirical=P_empirical, rmse=np.linalg.norm(np.mean(x_est_samples - x_gt, axis=1)))
+        return MlExperimentOutput(anees=np.mean(nees[~np.isnan(nees)]), cov_empirical=P_empirical, rmse=np.linalg.norm(np.mean(x_est_samples - x_gt, axis=1)))

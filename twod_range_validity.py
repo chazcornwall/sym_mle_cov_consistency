@@ -16,6 +16,7 @@ from mlelib import valid
 # Import possible models
 from models.twod_range import TwoDRangeModel, TwoDRangeModelParams
 from models.twod_range_huber import TwoDRangeModelHuber, TwoDRangeModelHuberParams
+from models.twod_bearing import TwoDBearingModel, TwoDBearingModelParams
 
 plt.rcParams.update({'font.size': 16})
 
@@ -35,8 +36,11 @@ class ValidityExperimentConfig(BaseModel):
     model_params: Dict 
 
 
-def create_heatmap(fig, ax, array: np.ndarray, extent: List[float], title: str, sats: np.ndarray):
-    im = ax.imshow(array, extent=extent, aspect='equal', origin='lower')
+def create_heatmap(fig, ax, array: np.ndarray, extent: List[float], title: str, sats: np.ndarray, symlognorm: bool = False):
+    if symlognorm:
+        im = ax.imshow(array, extent=extent, aspect='equal', origin='lower', norm=colors.SymLogNorm(1.0))
+    else:
+        im = ax.imshow(array, extent=extent, aspect='equal', origin='lower')
     fig.colorbar(im)
     
     # Plot satellites
@@ -55,6 +59,7 @@ def main(args):
         exp_params = ValidityExperimentConfig(**yaml.safe_load(f))
 
     # Load in the correct likelihood model depending on parameter files
+    meas_stddev = np.nan
     if exp_params.model_name == "twod_range":
         likelihood_model_params = TwoDRangeModelParams(**exp_params.model_params)
         likelihood_model = TwoDRangeModel(likelihood_model_params)
@@ -64,6 +69,7 @@ def main(args):
         nominal_likelihood_model_params.sat_range_stddev = 1.0
         nominal_likelihood_model = TwoDRangeModel(nominal_likelihood_model_params)
         rstar = np.zeros((nominal_likelihood_model.n, 1))
+        meas_stddev = likelihood_model_params.sat_range_stddev
     elif exp_params.model_name == "twod_range_huber":
         likelihood_model_params = TwoDRangeModelHuberParams(**exp_params.model_params)
         likelihood_model = TwoDRangeModelHuber(likelihood_model_params)
@@ -73,12 +79,29 @@ def main(args):
         nominal_likelihood_model_params.sat_range_stddev = 1.0
         nominal_likelihood_model = TwoDRangeModelHuber(nominal_likelihood_model_params)
         rstar = np.sqrt(nominal_likelihood_model_params.delta/nominal_likelihood_model.n) * np.ones((nominal_likelihood_model.n, 1))
+        meas_stddev = likelihood_model_params.sat_range_stddev
+    elif exp_params.model_name == "twod_bearing":
+        likelihood_model_params = TwoDBearingModelParams(**exp_params.model_params)
+        likelihood_model = TwoDBearingModel(likelihood_model_params)
+
+        # Create nominal likelihood model for calculating nominal covarinace in validity gap
+        nominal_likelihood_model_params = TwoDBearingModelParams(**exp_params.model_params)
+        nominal_likelihood_model_params.sat_bearing_stddev_deg = np.rad2deg(1.0)
+        nominal_likelihood_model = TwoDBearingModel(nominal_likelihood_model_params)
+        rstar = np.zeros((nominal_likelihood_model.n, 1))
+        meas_stddev = np.deg2rad(likelihood_model_params.sat_bearing_stddev_deg)
     else:
         raise ValueError(f"Invalid model name!")
 
     anees_array = np.zeros((exp_params.range_resolution, exp_params.range_resolution))
     rmse_array = np.zeros((exp_params.range_resolution, exp_params.range_resolution))
     valid_array = np.zeros((exp_params.range_resolution, exp_params.range_resolution))
+
+    def valid_gt(x_gt: np.ndarray) -> bool:
+        for loc in likelihood_model_params.sat_locs:
+            if abs(x_gt[0,0] - loc.x) < 1e-8 and abs(x_gt[1,0] - loc.y) < 1e-8:
+                return False
+        return True
 
     # Create list of all possible coordinates where we wish to evaluate ANEES
     coords : List[Tuple] = []
@@ -91,34 +114,39 @@ def main(args):
         j, i, x, y = coord_tuple
         x_gt = np.array([[x, y]]).T
 
-        # Create random initial starting point for optimization
-        x0 = x_gt + exp_params.initial_guess_stddev * np.random.randn(2,1)
+        if valid_gt(x_gt):
+            print(x_gt)
+            # Create random initial starting point for optimization
+            x0 = x_gt + exp_params.initial_guess_stddev * np.random.randn(2,1)
 
-        # Evaluate estmator using ground truth
-        ml_params = MlParams(
-            x0=x0, 
-            model=likelihood_model,
-            max_its=50
-        )
-        ml = MaximumLikelihood(ml_params)
-        output : MlExperimentOutput = ml.experiment(x_gt, likelihood_model.h, likelihood_model.S, N=exp_params.its_per_step, Nind=exp_params.N_ind_meas, plot=False)
+            # Evaluate estmator using ground truth
+            ml_params = MlParams(
+                x0=x0, 
+                model=likelihood_model,
+                max_its=50
+            )
+            ml = MaximumLikelihood(ml_params)
+            output : MlExperimentOutput = ml.experiment(x_gt, likelihood_model.h, likelihood_model.S, N=exp_params.its_per_step, Nind=exp_params.N_ind_meas, plot=False)
 
-        # Get terms used in validity calculation
-        J = nominal_likelihood_model.residual_jacobian_generator(x_gt)
-        Jcal = nominal_likelihood_model.residual_hessian_generator(x_gt)
-        H0 = nominal_likelihood_model.cost_hessian_generator(np.zeros((nominal_likelihood_model.n, 1)))
-        Hbold = nominal_likelihood_model.cost_deriv_hessian_generator(rstar)
-        Hcal = nominal_likelihood_model.cost_hessian_generator(rstar)
-        Fbarinv = np.linalg.inv(J.T @ H0 @ J)
-        Pz = nominal_likelihood_model.S
-        Nindmeas = nominal_likelihood_model.n / 3 * exp_params.N_ind_meas
+            # Get terms used in validity calculation
+            J = nominal_likelihood_model.residual_jacobian_generator(x_gt)
+            Jcal = nominal_likelihood_model.residual_hessian_generator(x_gt)
+            H0 = nominal_likelihood_model.cost_hessian_generator(np.zeros((nominal_likelihood_model.n, 1)))
+            Hbold = nominal_likelihood_model.cost_deriv_hessian_generator(rstar)
+            Hcal = nominal_likelihood_model.cost_hessian_generator(rstar)
+            Fbarinv = np.linalg.inv(J.T @ H0 @ J)
+            Pz = nominal_likelihood_model.S
+            Nindmeas = nominal_likelihood_model.n / 3 * exp_params.N_ind_meas
 
-        # Calculate validity using gt and nominal likelihood
-        validity_gap = np.inf
-        for k in range(nominal_likelihood_model.n):
-            curr_validity_gap = valid(Fbarinv, likelihood_model_params.sat_range_stddev**2, Nindmeas, mode=exp_params.validity_mode, J_i=J[k,:], J=J, Jcal_i=Jcal[k,:,:], Hbold_i=Hbold[k,:,:], Hcal_i=Hcal[k,:], Pz=Pz, rstar=rstar)[1]
-            if curr_validity_gap < validity_gap:
-                validity_gap = curr_validity_gap
+            # Calculate validity using gt and nominal likelihood
+            validity_gap = np.inf
+            for k in range(nominal_likelihood_model.n):
+                curr_validity_gap = valid(Fbarinv, meas_stddev**2, Nindmeas, mode=exp_params.validity_mode, J_i=J[k,:], J=J, Jcal_i=Jcal[k,:,:], Hbold_i=Hbold[k,:,:], Hcal_i=Hcal[k,:], Pz=Pz, rstar=rstar)[1]
+                if curr_validity_gap < validity_gap:
+                    validity_gap = curr_validity_gap
+        else:
+            output : MlExperimentOutput = MlExperimentOutput(anees=np.nan, rmse=np.nan, cov_empirical=np.full((x_gt.shape[0], x_gt.shape[0]), np.nan))
+            validity_gap = np.nan
 
         return (i, j, np.log(output.anees / 2), validity_gap, output.rmse)
 
@@ -141,14 +169,16 @@ def main(args):
 
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(20, 5))
     create_heatmap(fig, ax[0], anees_array, extent, "lnANEES over Operation Domain", likelihood_model.Sats)
-    create_heatmap(fig, ax[1], rmse_array, extent, "RMSE over Operation Domain", likelihood_model.Sats)
-    create_heatmap(fig, ax[2], valid_array, extent, "VG over Operation Domain", likelihood_model.Sats)
+    create_heatmap(fig, ax[1], rmse_array, extent, "Average Error Magnitude \nover Operation Domain", likelihood_model.Sats)
+    create_heatmap(fig, ax[2], valid_array, extent, "VG over Operation Domain", likelihood_model.Sats, symlognorm=True)
 
     # Print Pearson correlations and corresponding p values
-    res_anees_p = stats.pearsonr(anees_array.flatten(), valid_array.flatten())
+    anees_non_nan_mask = np.logical_or(~np.isnan(anees_array), ~np.isnan(valid_array))
+    res_anees_p = stats.pearsonr(anees_array[anees_non_nan_mask].flatten(), valid_array[anees_non_nan_mask].flatten())
     print(f"Pearson's Correlation between lnANEES and Validity Gap:\n\tPearson: {res_anees_p.statistic}, p-value: {res_anees_p.pvalue}")
 
-    res_rmse_p = stats.pearsonr(rmse_array.flatten(), valid_array.flatten())
+    rmse_non_nan_mask = np.logical_or(~np.isnan(rmse_array), ~np.isnan(valid_array))
+    res_rmse_p = stats.pearsonr(rmse_array[rmse_non_nan_mask].flatten(), valid_array[rmse_non_nan_mask].flatten())
     print(f"Pearson's Correlation between RMSE and Validity Gap:\n\tPearson: {res_rmse_p.statistic}, p-value: {res_rmse_p.pvalue}")
 
     if exp_params.save_plot:

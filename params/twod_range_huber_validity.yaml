@@ -1,5 +1,5 @@
 name: meas_sparse_huber
-save_plot: False
+save_plot: True
 x_range: [0.1, 10.0]
 y_range: [0, 0]
 range_resolution: 10 # Reduce resolution because we do not care so much for these experiments

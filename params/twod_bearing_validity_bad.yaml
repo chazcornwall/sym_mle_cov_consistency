@@ -1,0 +1,19 @@
+name: bearing_close
+save_plot: True
+x_range: [-5.0, 5.0]
+y_range: [-5.0, 5.0]
+range_resolution: 20
+its_per_step: 1000
+N_ind_meas: 5
+initial_guess_stddev: 0.5
+validity_mode: 0
+model_name: twod_bearing
+model_params:
+  sat_locs:
+    - x: 0.0
+      y: 1.0
+    - x: -1.0
+      y: 1.0
+    - x: 0.0
+      y: 0.0
+  sat_bearing_stddev_deg: 10.0

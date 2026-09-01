@@ -1,14 +1,15 @@
-from abc import ABC, abstractmethod
+from mlelib.utils import ResidualCalculator, RobustCostCalculator
 import numpy as np
 
 
-class LikelihoodModel(ABC):
+class LikelihoodModel:
     """
     Defines a likelihood distribution such that f(z|x) propto exp(-cost(res(z,x)))
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, res_calc: ResidualCalculator, cost_calc: RobustCostCalculator):
+        self.__res_calc = res_calc
+        self.__cost_calc = cost_calc
 
     def sample(self, x: np.ndarray, zmin: np.ndarray, zmax: np.ndarray) -> np.ndarray:
         '''
@@ -21,34 +22,30 @@ class LikelihoodModel(ABC):
         rejected_sample = True
         while rejected_sample:
             zsample = np.random.uniform(zmin, zmax)
-            prob_of_accepting_sample = np.exp(-self.cost_generator(self.residual_generator(zsample, x)))
+            prob_of_accepting_sample = np.exp(-self.__cost_calc.rho(self.__res_calc.res(zsample, x)))
             rejected_sample = np.random.uniform() > prob_of_accepting_sample
         return zsample
 
-    @abstractmethod
-    def residual_generator(self, z: np.ndarray, x: np.ndarray) -> np.ndarray:
-        pass
+    def h(self, x):
+        return self.__res_calc.h(x)
 
-    @abstractmethod
-    def residual_jacobian_generator(self, x: np.ndarray) -> np.ndarray:
-        pass
+    def residual_generator(self, z, x):
+        return self.__res_calc.res(z, x)
 
-    @abstractmethod
-    def residual_hessian_generator(self, x: np.ndarray) -> np.ndarray:
-        pass
+    def residual_jacobian_generator(self, x):
+        return self.__res_calc.dhdx(x)
 
-    @abstractmethod
-    def cost_generator(self, res: np.ndarray) -> float:
-        pass
+    def residual_hessian_generator(self, x):
+        return self.__res_calc.d2hdx2(x)
 
-    @abstractmethod
-    def cost_gradient_generator(self, res: np.ndarray) -> np.ndarray:
-        pass
+    def cost_generator(self, res):
+        return self.__cost_calc.rho(res)
 
-    @abstractmethod
-    def cost_hessian_generator(self, res: np.ndarray) -> np.ndarray:
-        pass
+    def cost_gradient_generator(self, res):
+        return self.__cost_calc.drhodres(res)
 
-    @abstractmethod
-    def cost_deriv_hessian_generator(self, res: np.ndarray) -> np.ndarray:
-        pass
+    def cost_hessian_generator(self, res):
+        return self.__cost_calc.d2rhodres2(res)
+
+    def cost_deriv_hessian_generator(self, res):
+        return self.__cost_calc.d3rhodres3(res)
