@@ -33,7 +33,6 @@ def calc_rstar(sigmar: float, delta: float, n: int, cost: str = "quadratic") -> 
 
 def valid(
         Fbarinv : np.ndarray, 
-        sigma2z : float, 
         N : int, 
         mode: int = 2, 
         J_i : np.ndarray = np.zeros(1), 
@@ -65,9 +64,7 @@ def valid(
     J : np.ndarray
         Residual Jacobian (dr/rx)
     Fbarinv : np.ndarray
-        Nominal covariance matrix (1 measurement with unit covariance)
-    sigma2z : float
-        Measurement variance
+        Optimal covariance (excluding N)
     N : int
         Number of independent measurements (remember, 1 measurement must ensure the solution is defined)
     Pz : np.ndarray
@@ -89,25 +86,21 @@ def valid(
     if mode != 1:
         J_i_norm = np.linalg.norm(J_i, 2) 
         if abs(J_i_norm) > 1e-8:
-            Lambda_i = np.linalg.norm(Jcal_i, 'fro') / np.linalg.norm(J_i, 2)
-            meas_thresh = sigma2z / N * np.trace(Fbarinv)**2 * np.linalg.norm(Jcal_i, 'fro')**2 / (J_i.T @ Fbarinv @ J_i)
-            # meas_thresh = np.trace(Fbarinv) * Lambda_i
+            Lambda_i = np.linalg.norm(Jcal_i, 'fro')**2 / (J_i.T @ Fbarinv @ J_i)
+            meas_thresh = 1 / N * np.trace(Fbarinv)**2 * Lambda_i
         # If J_i_norm is zero, then Jcal_i will be zero, satisfying sufficient condition for validity!
 
     if mode != 0:
         Hcal_i_norm = np.linalg.norm(Hcal_i, 2)
         if abs(Hcal_i_norm) > 1e-8:
-            Pr = sigma2z / N * J @ Fbarinv @ J.T + Pz
+            Pr = 1 / N * J @ Fbarinv @ J.T + Pz
             print(f"Hbold_i: {Hbold_i}")
             print(f"Hcal_i: {Hcal_i}")
-            # Psi_i = np.linalg.norm(Hbold_i, 'fro') / np.linalg.norm(Hcal_i, 2)
-            # denom = 1.0 - Psi_i * (np.trace(Pz) - np.linalg.norm(rstar, 2))
-            # if abs(denom) > 1e-8:
-                # cost_thresh = np.trace(Fbarinv) * np.linalg.norm(J, 'fro') * Psi_i / denom 
-            cost_thresh = np.trace(Pr) * (np.trace(Pr) + np.linalg.norm(rstar, 2)**2) * np.linalg.norm(Hbold_i, 'fro')**2 / (Hcal_i.T @ Pr @ Hcal_i) 
+            Psi_i = np.linalg.norm(Hbold_i, 'fro')**2 / (Hcal_i.T @ Pr @ Hcal_i) 
+            cost_thresh = np.trace(Pr) * (np.trace(Pr) + np.linalg.norm(rstar, 2)**2) * Psi_i
         # If Hcal_i_norm is zero, then Hbold_i will be zero, satisfying sufficient condition for validity!
 
-    max_thresh = 1 # N / sigma2z
+    max_thresh = 1 
 
     print(f"Max thresh: {max_thresh}")
     print(f"Meas thresh: {meas_thresh}")

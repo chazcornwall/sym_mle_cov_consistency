@@ -102,10 +102,10 @@ class RobustCostCalculator(ABC):
         return (res.T @ self.__Sinv @ res)[0,0]
 
     def __dqdres(self, res: np.ndarray):
-        return self.__Sinv @ res
+        return 2 * self.__Sinv @ res
 
     def __d2qdres2(self, res: np.ndarray):
-        return self.__Sinv
+        return 2 * self.__Sinv
 
     def rho(self, res: np.ndarray) -> float:
         return self._rho(self.__q(res))

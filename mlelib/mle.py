@@ -125,7 +125,6 @@ class MaximumLikelihood:
                 # Solve the following equation: J.T @ H @ J @ (x - x_prev) = -J.T @ g(res)
                 try:
                     x = x_prev + alpha * np.linalg.solve(FI, grad)
-                    np.linalg.inv(FI)
                 except np.linalg.LinAlgError:
                     singular = True
                     x = x_prev + 2 * (np.random.rand(2,1) - 0.5) # Generate a new random point that is not singular!
@@ -195,7 +194,7 @@ class MaximumLikelihood:
         for i in range(N):
             z = np.zeros((z_mean.shape[0], Nind))
             for k in range(Nind):
-                z[:,[k]] = self.__params.model.sample(x_gt, z_mean - z_extent, z_mean + z_extent) # z_mean + L @ np.random.randn(z_mean.shape[0], Nind)
+                z[:,[k]] =  z_mean + L @ np.random.randn(z_mean.shape[0], 1) # self.__params.model.sample(x_gt, z_mean - z_extent, z_mean + z_extent) #
             sol = self.mle(z)
             if i == 0:
                 P_avg = sol.P
@@ -210,7 +209,7 @@ class MaximumLikelihood:
                 P_est_list.append(sol.P)
 
         # Average normalized estimation error squared. Should be number of dimensions in state
-        # print(f"ANEES: {np.mean(nees)}")
+        print(f"ANEES: {np.mean(nees)}")
         print(f"E[xhat - xgt]: {np.mean(x_est_samples - x_gt, axis=1)}")
         P_empirical = np.cov(x_est_samples)
         # print(f"Var(xhat): \n {P_empirical}")

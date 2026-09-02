@@ -68,20 +68,12 @@ def main(args):
         likelihood_model_params = TwoDRangeModelParams(**exp_params.model_params)
         likelihood_model = TwoDRangeModel(likelihood_model_params)
 
-        # Create nominal likelihood model for calculating nominal covarinace in validity gap
-        nominal_likelihood_model_params = TwoDRangeModelParams(**exp_params.model_params)
-        nominal_likelihood_model_params.sat_range_stddev = 1.0
-        nominal_likelihood_model = TwoDRangeModel(nominal_likelihood_model_params)
         meas_stddev = likelihood_model_params.sat_range_stddev
         rstar = calc_rstar(meas_stddev, 0.0, likelihood_model.n, cost="quadratic")
     elif exp_params.model_name == "twod_range_huber":
         likelihood_model_params = TwoDRangeModelHuberParams(**exp_params.model_params)
         likelihood_model = TwoDRangeModelHuber(likelihood_model_params)
 
-        # Create nominal likelihood model for calculating nominal covarinace in validity gap
-        nominal_likelihood_model_params = TwoDRangeModelHuberParams(**exp_params.model_params)
-        nominal_likelihood_model_params.sat_range_stddev = 1.0
-        nominal_likelihood_model = TwoDRangeModelHuber(nominal_likelihood_model_params)
         # rstar = np.sqrt(nominal_likelihood_model_params.delta/nominal_likelihood_model.n) * np.ones((nominal_likelihood_model.n, 1))
         meas_stddev = likelihood_model_params.sat_range_stddev
         rstar = calc_rstar(meas_stddev, likelihood_model_params.delta, likelihood_model.n, cost="huber")
@@ -89,10 +81,6 @@ def main(args):
         likelihood_model_params = TwoDRangeModelCauchyParams(**exp_params.model_params)
         likelihood_model = TwoDRangeModelCauchy(likelihood_model_params)
 
-        # Create nominal likelihood model for calculating nominal covarinace in validity gap
-        nominal_likelihood_model_params = TwoDRangeModelCauchyParams(**exp_params.model_params)
-        nominal_likelihood_model_params.sat_range_stddev = 1.0
-        nominal_likelihood_model = TwoDRangeModelCauchy(nominal_likelihood_model_params)
         # rstar = np.sqrt(nominal_likelihood_model_params.delta/nominal_likelihood_model.n) * np.ones((nominal_likelihood_model.n, 1))
         meas_stddev = likelihood_model_params.sat_range_stddev
         rstar = calc_rstar(meas_stddev, likelihood_model_params.delta, likelihood_model.n, cost="huber")
@@ -100,10 +88,6 @@ def main(args):
         likelihood_model_params = TwoDBearingModelParams(**exp_params.model_params)
         likelihood_model = TwoDBearingModel(likelihood_model_params)
 
-        # Create nominal likelihood model for calculating nominal covarinace in validity gap
-        nominal_likelihood_model_params = TwoDBearingModelParams(**exp_params.model_params)
-        nominal_likelihood_model_params.sat_bearing_stddev_deg = np.rad2deg(1.0)
-        nominal_likelihood_model = TwoDBearingModel(nominal_likelihood_model_params)
         meas_stddev = np.deg2rad(likelihood_model_params.sat_bearing_stddev_deg)
         rstar = calc_rstar(meas_stddev, 0.0, likelihood_model.n, cost="quadratic")
     else:
@@ -145,19 +129,20 @@ def main(args):
             output : MlExperimentOutput = ml.experiment(x_gt, likelihood_model.h, likelihood_model.S, N=exp_params.its_per_step, Nind=exp_params.N_ind_meas, plot=False)
 
             # Get terms used in validity calculation
-            J = nominal_likelihood_model.residual_jacobian_generator(x_gt)
-            Jcal = nominal_likelihood_model.residual_hessian_generator(x_gt)
-            H0 = nominal_likelihood_model.cost_hessian_generator(np.zeros((nominal_likelihood_model.n, 1)))
-            Hbold = nominal_likelihood_model.cost_deriv_hessian_generator(rstar)
-            Hcal = nominal_likelihood_model.cost_hessian_generator(rstar)
+            J = likelihood_model.residual_jacobian_generator(x_gt)
+            Jcal = likelihood_model.residual_hessian_generator(x_gt)
+            H0 = likelihood_model.cost_hessian_generator(rstar) # Note: we are assuming wstar and rstar are the same!
+            print(f"H0: {H0}")
+            Hbold = likelihood_model.cost_deriv_hessian_generator(rstar)
+            Hcal = likelihood_model.cost_hessian_generator(rstar)
             Fbarinv = np.linalg.inv(J.T @ H0 @ J)
-            Pz = nominal_likelihood_model.S
-            Nindmeas = nominal_likelihood_model.n / 3 * exp_params.N_ind_meas
+            Pz = likelihood_model.S
+            Nindmeas = likelihood_model.n / 3 * exp_params.N_ind_meas
 
-            # Calculate validity using gt and nominal likelihood
+            # Calculate validity using gt and likelihood
             validity_gap = np.inf
-            for k in range(nominal_likelihood_model.n):
-                curr_validity_gap = valid(Fbarinv, meas_stddev**2, Nindmeas, mode=exp_params.validity_mode, J_i=J[k,:], J=J, Jcal_i=Jcal[k,:,:], Hbold_i=Hbold[k,:,:], Hcal_i=Hcal[k,:], Pz=Pz, rstar=rstar)[1]
+            for k in range(likelihood_model.n):
+                curr_validity_gap = valid(Fbarinv, Nindmeas, mode=exp_params.validity_mode, J_i=J[k,:], J=J, Jcal_i=Jcal[k,:,:], Hbold_i=Hbold[k,:,:], Hcal_i=Hcal[k,:], Pz=Pz, rstar=rstar)[1]
                 if curr_validity_gap < validity_gap:
                     validity_gap = curr_validity_gap
         else:
