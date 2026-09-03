@@ -1,0 +1,8 @@
+Pearson's Correlation between lnANEES and VR:
+	Pearson: 0.37043319494112764, p-value: 1.8641286813432302e-14
+Spearmans's Correlation between lnANEES and VR:
+	Spearman: 0.23739392121200756, p-value: 1.5721893757045527e-06
+Pearson's Correlation between Bias Magnitude and VR:
+	Pearson: 0.22063517276107533, p-value: 8.432456426866271e-06
+Spearman's Correlation between Bias Magnitude and VR:
+	Spearman: 0.14810286314289464, p-value: 0.0029859741937351895

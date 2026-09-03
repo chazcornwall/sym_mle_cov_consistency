@@ -16,4 +16,4 @@ model_params:
       y: 2.0
     - x: -5.0
       y: -2.0
-  sat_bearing_stddev_deg: 10.0
+  sat_bearing_stddev_deg: 3.0

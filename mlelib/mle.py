@@ -80,6 +80,8 @@ class MaximumLikelihood:
         r = lambda z, x : self.__params.model.residual_generator(z, x)
         J = lambda x : self.__params.model.residual_jacobian_generator(x)
 
+        # Adapt the g, H, and rho depending on the number of independent measurements
+
         def g(res):
             g_temp = np.zeros((n, 1))
             for j in range(N):
@@ -97,8 +99,6 @@ class MaximumLikelihood:
             for j in range(N):
                 rho_temp += self.__params.model.cost_generator(res[:, [j]])
             return rho_temp
-
-        Hresx = lambda res : self.__params.model.residual_hessian_generator(res)
 
         x_seq.append(x)
         curr_i = 0
@@ -157,20 +157,6 @@ class MaximumLikelihood:
         
         # According to the Cramer-Rao Lower Bound, all ML estimators approach a covariance of (FI)^-1
         FI_gn = J(x).T @ H(r(z, x)) @ J(x)
-        # evals = np.linalg.eigvals(FI_gn)
-        # if np.any(evals < 1e-3):
-        #     print(FI_gn)
-        # FI_missing = np.zeros((x.shape[0], x.shape[0]))
-        # Hresx = Hresx(x)
-        # for i in range(z.shape[0]):
-        #     FI_missing += Hresx[i,:,:] * g(r(z, x))[i,0]
-        #     print(f"tr(Hessian) {i}:\n {np.trace(Hresx[i,:,:].T @ Hresx[i,:,:])}")
-        # print(f"Jacobian:\n {J(x)}")
-        # print(f"Thresh: {3/(0.01*2) * np.linalg.norm(J(x)[0,:])**2 / (np.linalg.norm(x)**2  + np.trace(np.linalg.inv(FI)))}")
-
-        # if np.linalg.inv(FI)[0,0] > 50:
-        # print(f"FI_missing: \n{FI_missing}")
-        # print(f"FI_gn: \n{FI_gn}")
 
         try:
             P = np.linalg.inv(FI_gn)
@@ -188,13 +174,13 @@ class MaximumLikelihood:
         P_est_list : List = []
         P_avg = np.zeros((x_gt.shape[0], x_gt.shape[0]))
         z_mean = h(x_gt)
-        z_extent = 5 * np.sqrt(z_cov[0,0]) * np.ones(z_mean.shape)
+        z_extent = 4 * np.sqrt(z_cov[0,0]) * np.ones(z_mean.shape)
 
         # Run the same estimation problem N times and collect data
         for i in range(N):
             z = np.zeros((z_mean.shape[0], Nind))
             for k in range(Nind):
-                z[:,[k]] =  z_mean + L @ np.random.randn(z_mean.shape[0], 1) # self.__params.model.sample(x_gt, z_mean - z_extent, z_mean + z_extent) #
+                z[:,[k]] =  self.__params.model.sample(x_gt, z_mean - z_extent, z_mean + z_extent) # z_mean + L @ np.random.randn(z_mean.shape[0], 1)
             sol = self.mle(z)
             if i == 0:
                 P_avg = sol.P
@@ -209,8 +195,9 @@ class MaximumLikelihood:
                 P_est_list.append(sol.P)
 
         # Average normalized estimation error squared. Should be number of dimensions in state
-        print(f"ANEES: {np.mean(nees)}")
-        print(f"E[xhat - xgt]: {np.mean(x_est_samples - x_gt, axis=1)}")
+        print(f"Stats for {N} trials of estimating x_gt: {x_gt.T}")
+        print(f"\tANEES: {np.mean(nees)}")
+        print(f"\tE[xhat - xgt]: {np.mean(x_est_samples - x_gt, axis=1)}")
         P_empirical = np.cov(x_est_samples)
         # print(f"Var(xhat): \n {P_empirical}")
         

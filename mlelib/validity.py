@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Tuple
+from mlelib.model import LikelihoodModel
 
 
 def calc_rstar(sigmar: float, delta: float, n: int, cost: str = "quadratic") -> np.array:
@@ -44,7 +45,7 @@ def valid(
         rstar: np.ndarray = np.zeros(1)
     ) -> Tuple[bool, float]:
     """
-    Checks whether a solution should have a valid, linear covariance estimate. 
+    Checks whether a single measurement should generate a valid, linear covariance estimate. 
     This function expects the residual of the form r = h(x) - z where r_i is the
     ith element of the residual.
 
@@ -77,7 +78,7 @@ def valid(
     Returns
     -------
     bool, float
-        Validity of linear covariance estimate and the validity gap (should be positive for a valid solution)
+        Validity of linear covariance estimate and the validity ratio (should be greater than 1 for a valid solution)
     """
 
     meas_thresh : float = None
@@ -110,12 +111,12 @@ def valid(
         if meas_thresh is None:
             return True, np.nan
         else:
-            return meas_thresh <= max_thresh, max_thresh - meas_thresh
+            return meas_thresh <= max_thresh, meas_thresh
     elif mode == 1:
         if cost_thresh is None:
             return True, np.nan
         else:
-            return cost_thresh <= max_thresh, max_thresh - cost_thresh
+            return cost_thresh <= max_thresh, cost_thresh
     elif mode == 2:
         if meas_thresh is not None and cost_thresh is not None:
             max_meas_cost_thresh = max(meas_thresh, cost_thresh)
@@ -125,10 +126,56 @@ def valid(
             max_meas_cost_thresh = cost_thresh
         else:
             return True, np.nan
-        return max_meas_cost_thresh <= max_thresh, max_thresh - max_meas_cost_thresh
+        return max_meas_cost_thresh <= max_thresh, max_meas_cost_thresh
     else:
         raise SyntaxError(f"Invalid mode! Mode must be 0,1,2")
 
+
+def validity(likelihood_model: LikelihoodModel, n: int, N: int, Pz: np.ndarray, x_gt: np.ndarray, rstar: np.ndarray, wstar: np.ndarray, mode: int = 2) -> Tuple[bool, float]:
+    """
+    Checks whether a solution should have a valid, linear covariance estimate. 
+
+    Params
+    ------
+    likelihood_model : mlelib.model.LikelihoodModel
+    n : int
+        Number of elements in a single measurement vector
+    N : int
+        Number of independent measurements (remember, 1 measurement must ensure the solution is defined)
+    Pz : np.ndarray
+        Measurement covariance matrix
+    x_gt : np.ndarray
+        Ground truth state
+    rstar : np.ndarray
+        Symmetric-aware residual
+    wstar : np.ndarray
+        Symmetric-aware average residual when we have access to ground truth
+    mode : int, {0,1,2}
+        0 for measurement model validation, 1 for cost function validation, 2 for both
+
+    Returns
+    -------
+    bool, float
+        Validity of linear covariance estimate and the validity ratio (should be greater than 1 for a valid solution)
+    """
+    J = likelihood_model.residual_jacobian_generator(x_gt)
+    Jcal = likelihood_model.residual_hessian_generator(x_gt)
+    H0 = likelihood_model.cost_hessian_generator(wstar)
+    Hbold = likelihood_model.cost_deriv_hessian_generator(rstar)
+    Hcal = likelihood_model.cost_hessian_generator(rstar)
+    Fbarinv = np.linalg.inv(J.T @ H0 @ J)
+    Nindmeas = n / x_gt.shape[0] * N
+
+    # Calculate validity using gt and likelihood
+    validity_ratio = 0
+    validity_decision = True
+    for k in range(likelihood_model.n):
+        curr_decision, curr_validity_ratio = valid(Fbarinv, Nindmeas, mode=mode, J_i=J[k,:], J=J, Jcal_i=Jcal[k,:,:], Hbold_i=Hbold[k,:,:], Hcal_i=Hcal[k,:], Pz=Pz, rstar=rstar)
+        if curr_validity_ratio > validity_ratio:
+            validity_ratio = curr_validity_ratio
+        validity_decision = curr_decision and validity_decision
+    return validity_decision, validity_ratio
+    
     
 
 

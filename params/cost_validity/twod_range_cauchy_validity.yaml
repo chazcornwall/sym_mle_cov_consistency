@@ -1,13 +1,33 @@
-name: meas_sparse_huber
+name: meas_sparse_cauchy
 save_plot: True
-x_range: [0.1, 10.0]
-y_range: [0, 0]
+delta_range: [0.1, 10.0]
 range_resolution: 10 # Reduce resolution because we do not care so much for these experiments
 its_per_step: 1000
 N_ind_meas: 5
 initial_guess_stddev: 0.5
 validity_mode: 1
-model_name: twod_range_huber
+eval_locs:
+  - x: 4.3
+    y: -0.6
+  - x: -0.4
+    y: 1.09
+  - x: -1.5
+    y: -3.9
+  - x: 4.9
+    y: -2.0
+  - x: -3.1
+    y: -0.6
+  - x: 4.7
+    y: -3.2
+  - x: 2.3
+    y: -3.6
+  - x: 2.8
+    y: 3.6
+  - x: 3.6
+    y: -4.2
+  - x: 3.18
+    y: -3.7
+model_name: twod_range_cauchy
 model_params:
   delta: 0.25
   sat_locs:

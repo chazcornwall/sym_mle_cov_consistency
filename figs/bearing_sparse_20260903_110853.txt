@@ -1,0 +1,8 @@
+Pearson's Correlation between lnANEES and lnVR:
+	Pearson: nan, p-value: nan
+Spearmans's Correlation between lnANEES and lnVR:
+	Spearman: nan, p-value: nan
+Pearson's Correlation between Bias Magnitude and lnVR:
+	Pearson: 0.22331145240720263, p-value: 6.503516923582882e-06
+Spearman's Correlation between Bias Magnitude and lnVR:
+	Spearman: -0.04611872574203589, p-value: 0.35758450143643095
