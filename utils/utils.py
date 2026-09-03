@@ -3,6 +3,7 @@ import numpy as np
 
 from mlelib import MaximumLikelihood, MlParams, MlExperimentOutput
 from mlelib import calc_rstar
+from mlelib.utils import a2pi
 
 # Import possible models
 from models.twod_range import TwoDRangeModel, TwoDRangeModelParams
@@ -51,14 +52,16 @@ def load_likelihood_model(model_name: str, model_params: Dict):
         likelihood_model_cb = TwoDBearingModelHuber
 
         meas_stddev = np.deg2rad(likelihood_model_params.sat_bearing_stddev_deg)
-        rstar = calc_rstar(meas_stddev, likelihood_model_params.delta, likelihood_model.n, cost="pseudohuber")
+        # Epsilon is smaller here due to angle wrapping (not as many outliers)
+        rstar = a2pi(calc_rstar(meas_stddev, likelihood_model_params.delta, likelihood_model.n, epsilon=0.2, cost="pseudohuber"))
     elif model_name == "twod_bearing_cauchy":
         likelihood_model_params = TwoDBearingModelCauchyParams(**model_params)
         likelihood_model = TwoDBearingModelCauchy(likelihood_model_params)
         likelihood_model_cb = TwoDBearingModelCauchy
 
         meas_stddev = np.deg2rad(likelihood_model_params.sat_bearing_stddev_deg)
-        rstar = calc_rstar(meas_stddev, likelihood_model_params.delta, likelihood_model.n, cost="cauchy")
+        # Epsilon is smaller here due to angle wrapping (not as many outliers)
+        rstar = a2pi(calc_rstar(meas_stddev, likelihood_model_params.delta, likelihood_model.n, epsilon=0.2, cost="cauchy"))
     else:
         raise ValueError(f"Invalid model name!")
 

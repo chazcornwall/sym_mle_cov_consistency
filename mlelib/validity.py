@@ -3,11 +3,12 @@ from typing import Tuple
 from mlelib.model import LikelihoodModel
 
 
-def calc_rstar(sigmar: float, delta: float, n: int, cost: str = "quadratic") -> np.array:
+def calc_rstar(sigmar: float, delta: float, n: int, epsilon: float = 0.5, cost: str = "quadratic") -> np.array:
     """
     Calculates r^* or the linearization point for cost function validity.
     rstar is selected such that rstar's magnitude occurs at an inflection point of
-    the cost function's second derivative.
+    the cost function's second derivative. Since we are linearizing about an inflection point,
+    we run the possibility of landing in a region that is not convex. Epsilon is used for this purpose.
 
     Params
     ------
@@ -17,6 +18,8 @@ def calc_rstar(sigmar: float, delta: float, n: int, cost: str = "quadratic") -> 
         Parameter of robust cost function such that delta -> infty implies a quadratic cost
     n : int
         Number of elements in a measurement vector
+    epsilon : float
+        Scalar in range (0,1] to ensure we are linearizing in a convex region the symmetric function.
     cost : str
         Name of cost function. Options are: "quadratic", "pseudohuber", "cauchy"
     """
@@ -29,7 +32,7 @@ def calc_rstar(sigmar: float, delta: float, n: int, cost: str = "quadratic") -> 
     else:
         raise ValueError(f"cost function {cost} is not available!")
 
-    return np.sqrt(rstar_magnitude / n) * np.ones((n,1))
+    return epsilon * np.sqrt(rstar_magnitude / n) * np.ones((n,1))
 
 
 def valid(
@@ -95,8 +98,6 @@ def valid(
         Hcal_i_norm = np.linalg.norm(Hcal_i, 2)
         if abs(Hcal_i_norm) > 1e-8:
             Pr = 1 / N * J @ Fbarinv @ J.T + Pz
-            print(f"Hbold_i: {Hbold_i}")
-            print(f"Hcal_i: {Hcal_i}")
             Psi_i = np.linalg.norm(Hbold_i, 'fro')**2 / (Hcal_i.T @ Pr @ Hcal_i) 
             cost_thresh = np.trace(Pr) * (np.trace(Pr) + np.linalg.norm(rstar, 2)**2) * Psi_i
         # If Hcal_i_norm is zero, then Hbold_i will be zero, satisfying sufficient condition for validity!

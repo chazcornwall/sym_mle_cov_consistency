@@ -108,7 +108,6 @@ def main(args):
         )
         ml = MaximumLikelihood(ml_params)
         output : MlExperimentOutput = ml.experiment(x_gt, likelihood_model.h, likelihood_model.S, N=exp_params.its_per_step, Nind=exp_params.N_ind_meas, plot=False)
-
         valid_mask, validity_ratio = validity(likelihood_model, likelihood_model.n, exp_params.N_ind_meas, likelihood_model.S, x_gt, rstar, rstar, mode=exp_params.validity_mode)
         valid_mask = 1.0 if valid_mask else 0.0
 
@@ -146,13 +145,13 @@ def main(args):
     output_lines_to_save : List[str] = []
 
     # Print Pearson correlations and corresponding p values
-    anees_non_nan_mask = np.logical_or(~np.isnan(anees_array), ~np.isnan(valid_array))
+    anees_non_nan_mask = np.logical_and(~np.isnan(anees_array), ~np.isnan(valid_array))
     res_anees_p = stats.pearsonr(anees_array[anees_non_nan_mask].flatten(), valid_array[anees_non_nan_mask].flatten())
     res_anees_s = stats.spearmanr(anees_array[anees_non_nan_mask].flatten(), valid_array[anees_non_nan_mask].flatten())
     output_lines_to_save.append(f"Pearson's Correlation between lnANEES and VR:\n\tPearson: {res_anees_p.statistic}, p-value: {res_anees_p.pvalue}")
     output_lines_to_save.append(f"Spearmans's Correlation between lnANEES and VR:\n\tSpearman: {res_anees_s.statistic}, p-value: {res_anees_s.pvalue}")
 
-    rmse_non_nan_mask = np.logical_or(~np.isnan(rmse_array), ~np.isnan(valid_array))
+    rmse_non_nan_mask = np.logical_and(~np.isnan(rmse_array), ~np.isnan(valid_array))
     res_rmse_p = stats.pearsonr(rmse_array[rmse_non_nan_mask].flatten(), valid_array[rmse_non_nan_mask].flatten())
     res_rmse_s = stats.spearmanr(rmse_array[rmse_non_nan_mask].flatten(), valid_array[rmse_non_nan_mask].flatten())
     output_lines_to_save.append(f"Pearson's Correlation between Bias Magnitude and VR:\n\tPearson: {res_rmse_p.statistic}, p-value: {res_rmse_p.pvalue}")

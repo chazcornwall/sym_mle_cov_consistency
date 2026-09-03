@@ -29,8 +29,9 @@ def test_mle_unbiased():
     L = np.linalg.cholesky(likelihood_model.S)
     z_mean = likelihood_model.h(x_gt)
 
-    error = np.zeros((2, 1000))
-    for i in range(1000):
+    N = 1000
+    error = np.zeros((2, N))
+    for i in range(N):
         z = z_mean + L @ np.random.randn(z_mean.shape[0], 10)
         output = ml.mle(z)
         error[:,[i]] = output.x - x_gt

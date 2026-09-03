@@ -117,29 +117,40 @@ class MaximumLikelihood:
                 print(f"\tGradient (flattened): {grad.T}")
                 print(f"\tCost: {rho(res)}")
 
+            # Calculate GN direction
+            singular = False
+            try:
+                # Solve the following equation: J.T @ H @ J @ (x - x_prev) = -J.T @ g(res)
+                grad_gn = np.linalg.solve(FI, grad)
+            except np.linalg.LinAlgError:   
+                singular = True
+
             # Update damping factor using line search
             alpha = self.__params.alpha0
-            singular = False
+            cost_reducing_ls = False
             for j in range(self.__params.max_ls_its):
 
-                # Solve the following equation: J.T @ H @ J @ (x - x_prev) = -J.T @ g(res)
-                try:
-                    x = x_prev + alpha * np.linalg.solve(FI, grad)
-                except np.linalg.LinAlgError:
-                    singular = True
-                    x = x_prev + 2 * (np.random.rand(2,1) - 0.5) # Generate a new random point that is not singular!
+                if not singular:
+                    x = x_prev + alpha * grad_gn # Damped GN always goes towards direction where 2nd derivative is zero!
 
-                # Once we find a good damping factor, keep going!
-                if (rho(res) < rho(r(z, x))):
-                    alpha *= 0.5
+                cost_reducing_ls = rho(r(z, x)) < rho(res)
+                if not cost_reducing_ls:
+                    # Try a gradient-descent step if GN step does not work (We are essentially doing Levenberg-Marquardt at this point...)
+                    x_gd = x_prev + alpha * grad 
+                    cost_reducing_ls = rho(r(z, x_gd)) < rho(res)
+                    if not cost_reducing_ls:
+                        alpha *= 0.5
+                    else:
+                        x = x_gd
+                        break
                 else:
+                    # Once we find a good damping factor, keep going!
                     break 
 
-            if j + 1 >= self.__params.max_ls_its:
+            if not cost_reducing_ls:
                 if verbose:
                     print(f"WARNING: Could not find cost-reducing line search!")
-                if not singular:
-                    x = np.copy(x_prev) # Do not use a worst solution!
+                x = np.copy(x_prev) # Do not use a worst solution!
                     
             if verbose:
                 print(f"After it: {i+1}")
