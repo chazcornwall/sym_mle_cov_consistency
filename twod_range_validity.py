@@ -34,11 +34,9 @@ class ValidityExperimentConfig(BaseModel):
     model_params: Dict 
 
 
-def create_heatmap(fig, ax, array: np.ndarray, extent: List[float], title: str, sats: np.ndarray, color_boundaries: List = []):
-    if len(color_boundaries) > 0:
-        cmap = plt.colormaps['viridis']
-        ncolors = cmap.N
-        im = ax.imshow(array, extent=extent, aspect='equal', origin='lower', norm=colors.BoundaryNorm(color_boundaries, ncolors))
+def create_heatmap(fig, ax, array: np.ndarray, extent: List[float], title: str, sats: np.ndarray, lognorm: bool = False):
+    if lognorm:
+        im = ax.imshow(array, extent=extent, aspect='equal', origin='lower', norm=colors.LogNorm())
     else: 
         im = ax.imshow(array, extent=extent, aspect='equal', origin='lower')
     fig.colorbar(im, shrink=0.55)
@@ -125,9 +123,9 @@ def main(args):
     extent = [exp_params.x_range[0] - step_size/2, exp_params.x_range[1] + step_size/2, exp_params.y_range[0] - step_size/2, exp_params.y_range[1] + step_size/2]
 
     fig, ax = plt.subplots(nrows=1, ncols=4, figsize=(20, 5))
-    create_heatmap(fig, ax[0], anees_array, extent, "lnANEES", likelihood_model.Sats)
-    create_heatmap(fig, ax[1], rmse_array, extent, "Bias Magnitude", likelihood_model.Sats)
-    create_heatmap(fig, ax[2], valid_array, extent, "Validity Ratio", likelihood_model.Sats)
+    create_heatmap(fig, ax[0], anees_array, extent, "lnANEES", likelihood_model.Sats, lognorm=True)
+    create_heatmap(fig, ax[1], rmse_array, extent, "Bias Magnitude", likelihood_model.Sats, lognorm=True)
+    create_heatmap(fig, ax[2], valid_array, extent, "Validity Ratio", likelihood_model.Sats, lognorm=True)
     create_heatmap(fig, ax[3], valid_mask_array, extent, "Validity Mask", likelihood_model.Sats)
 
     # Place legend beneath all subplots

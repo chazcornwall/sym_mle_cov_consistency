@@ -19,7 +19,7 @@ def calc_rstar(sigmar: float, delta: float, n: int, epsilon: float = 0.5, cost: 
     n : int
         Number of elements in a measurement vector
     epsilon : float
-        Scalar in range (0,1] to ensure we are linearizing in a convex region the symmetric function.
+        Scalar in range (0,1] to ensure we are linearizing in a convex region of the symmetric function.
     cost : str
         Name of cost function. Options are: "quadratic", "pseudohuber", "cauchy"
     """
