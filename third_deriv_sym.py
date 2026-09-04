@@ -42,10 +42,10 @@ costs["Cauchy"] = sp.Rational(1,2) * delta**2 * sp.log(
 # 5. Geman-McClure
 costs["Geman-McClure"] = r**2 / (2*(delta**2 + r**2))
 
-# 6. Welsch (Leclerc)
-costs["Welsch"] = delta**2 * (
-    1 - sp.exp(-r**2/(2*delta**2))
-)
+# # 6. Welsch (Leclerc)
+# costs["Welsch"] = delta**2 * (
+#     1 - sp.exp(-r**2/(2*delta**2))
+# )
 
 # 7. Tukey Biweight
 x = r/delta
@@ -62,45 +62,43 @@ costs["Tukey"] = sp.Piecewise(
 # Compute Symbolic Derivatives
 # ============================================================
 
-second_derivatives = {}
+third_derivatives = {}
 
-print("\nAnalytical Second Derivatives\n")
+print("\nAnalytical Third Derivatives\n")
 
 for name, rho in costs.items():
 
-    d2 = sp.diff(rho, r, 2)
-    d2 = sp.simplify(d2)
+    d3 = sp.diff(rho, r, 3)
+    d3 = sp.simplify(d3)
 
-    d4 = sp.diff(rho, r, 4)
-    solutions = sp.solve(d4, r**2)
-
-    second_derivatives[name] = d2
+    third_derivatives[name] = d3
 
     print("="*60)
     print(name)
     print("="*60)
-    sp.pprint(d2)
-    sp.pprint(solutions)
+    sp.pprint(d3)
     print()
 
 # ============================================================
 # Plot
 # ============================================================
 
+plt.rcParams.update({'font.size': 16})
+
 delta_value = np.ones(1500)
 
 r_vals = np.linspace(-5, 5, 1500)
 
 fig, axs = plt.subplots(
-    4,
     2,
-    figsize=(14,10),
+    3,
+    figsize=(20,5),
     sharex=True
 )
 
 axs = axs.flatten()
 
-for ax, (name, expr) in zip(axs, second_derivatives.items()):
+for ax, (name, expr) in zip(axs, third_derivatives.items()):
 
     f = sp.lambdify((r, delta), expr, modules=["sympy"])
 
@@ -117,13 +115,13 @@ for ax, (name, expr) in zip(axs, second_derivatives.items()):
             "",
             xy=(-1, 1),
             xytext=(-1, 0),
-            arrowprops=dict(arrowstyle='->', lw=2)
+            arrowprops=dict(arrowstyle='->', lw=2, color="tab:blue")
         )
         ax.annotate(
             "",
             xy=(1, -1),
             xytext=(1, 0),
-            arrowprops=dict(arrowstyle='->', lw=2)
+            arrowprops=dict(arrowstyle='->', lw=2, color="tab:blue")
         )
         # ax.text(0.05, 0.95, r'$\delta(x)$', fontsize=14)
 
@@ -137,7 +135,7 @@ for ax, (name, expr) in zip(axs, second_derivatives.items()):
     ax.axhline(0, color='k', ls='--', lw=0.75)
     ax.axvline(0, color='gray', ls=':')
 
-fig.delaxes(axs[-1])
+# fig.delaxes(axs[-1])
 
 plt.tight_layout()
 
