@@ -123,11 +123,10 @@ def main(args):
     extent = [exp_params.x_range[0] - step_size/2, exp_params.x_range[1] + step_size/2, exp_params.y_range[0] - step_size/2, exp_params.y_range[1] + step_size/2]
 
     # Uncomment for introduction image
-    # fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10, 10)) 
-    # create_heatmap(fig, ax[0,0], anees_array, extent, "lnANEES", likelihood_model.Sats, lognorm=True)
-    # create_heatmap(fig, ax[0,1], rmse_array, extent, "Bias Magnitude", likelihood_model.Sats, lognorm=True)
-    # create_heatmap(fig, ax[1,0], valid_array, extent, "Validity Ratio", likelihood_model.Sats, lognorm=True)
-    # create_heatmap(fig, ax[1,1], valid_mask_array, extent, "Validity Mask", likelihood_model.Sats)
+    # fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(20, 5)) 
+    # create_heatmap(fig, ax[0], anees_array, extent, "lnANEES", likelihood_model.Sats, lognorm=True)
+    # create_heatmap(fig, ax[1], valid_array, extent, "Validity Ratio", likelihood_model.Sats, lognorm=True)
+    # create_heatmap(fig, ax[2], valid_mask_array, extent, "Validity Mask", likelihood_model.Sats)
 
     # Comment the following code block when creating the introduction image
     fig, ax = plt.subplots(nrows=1, ncols=4, figsize=(20, 5))
@@ -146,7 +145,7 @@ def main(args):
         handles=[handles[-1]],
         labels=[labels[-1]],
         loc="upper center",          # Alignment point of the legend box
-        bbox_to_anchor=(0.5, 0.15), # Coordinates relative to the figure (x, y) # bbox_to_achor=(0.5, 0.1) when creating introduction image
+        bbox_to_anchor=(0.5, 0.15), # Coordinates relative to the figure (x, y) # bbox_to_achor=(0.5, 0.05) when creating introduction image
         ncols=2                      # Make the legend layout horizontal
     )
     plt.tight_layout() 

@@ -86,6 +86,8 @@ curves = {
 # Plot
 # ============================================================
 
+plt.rcParams.update({'font.size': 16})
+
 fig, axs = plt.subplots(
     4,
     2,

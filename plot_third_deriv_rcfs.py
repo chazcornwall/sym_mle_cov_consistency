@@ -90,9 +90,9 @@ delta_value = np.ones(1500)
 r_vals = np.linspace(-5, 5, 1500)
 
 fig, axs = plt.subplots(
-    2,
     3,
-    figsize=(20,5),
+    2,
+    figsize=(10,10),
     sharex=True
 )
 
