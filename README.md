@@ -1,7 +1,7 @@
 # The Consistency of Covariance Estimates in Symmetric Maximum Likelihood Estimation
 
 This repository contains code for running simmulations to verify the validity ratio (VR), a new metric for checking estimator
-consistency without Monte Carlo simulations. Simulations have only been verified to execute properly when using Python 3.12.2 on Ubuntu 24.04.
+consistency without Monte Carlo simulations. This metric is introduced in our paper currently under review. Simulations have only been verified to execute properly when using Python 3.12.2 on Ubuntu 24.04.
 
 See `requirements.txt` for required packages. To download all required packages, run
 
