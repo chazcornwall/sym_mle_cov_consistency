@@ -44,7 +44,7 @@ class MlExperimentOutput(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     anees: float
     cov_empirical: np.ndarray
-    rmse: float 
+    bias_mag: float 
 
 class MaximumLikelihood:
 
@@ -228,4 +228,4 @@ class MaximumLikelihood:
             plot_cov(P_avg, mu_empirical, label="Avg Cov", color="blue")
             plt.legend()
             plt.show()
-        return MlExperimentOutput(anees=np.mean(nees[~np.isnan(nees)]), cov_empirical=P_empirical, rmse=np.linalg.norm(np.mean(x_est_samples - x_gt, axis=1)))
+        return MlExperimentOutput(anees=np.mean(nees[~np.isnan(nees)]), cov_empirical=P_empirical, bias_mag=np.linalg.norm(np.mean(x_est_samples - x_gt, axis=1)))

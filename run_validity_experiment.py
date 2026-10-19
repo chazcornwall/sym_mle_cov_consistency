@@ -59,7 +59,7 @@ def main(args):
     _, likelihood_model, likelihood_model_params, rstar = load_likelihood_model(exp_params.model_name, exp_params.model_params)
 
     anees_array = np.zeros((exp_params.range_resolution, exp_params.range_resolution))
-    rmse_array = np.zeros((exp_params.range_resolution, exp_params.range_resolution))
+    bias_mag_array = np.zeros((exp_params.range_resolution, exp_params.range_resolution))
     valid_array = np.zeros((exp_params.range_resolution, exp_params.range_resolution))
     valid_mask_array = np.zeros((exp_params.range_resolution, exp_params.range_resolution))
 
@@ -95,24 +95,24 @@ def main(args):
 
             valid_mask, validity_ratio = validity(likelihood_model, likelihood_model.n, exp_params.N_ind_meas, likelihood_model.S, x_gt, rstar, rstar, mode=exp_params.validity_mode)
         else:
-            output : MlExperimentOutput = MlExperimentOutput(anees=np.nan, rmse=np.nan, cov_empirical=np.full((x_gt.shape[0], x_gt.shape[0]), np.nan))
+            output : MlExperimentOutput = MlExperimentOutput(anees=np.nan, bias_mag=np.nan, cov_empirical=np.full((x_gt.shape[0], x_gt.shape[0]), np.nan))
             validity_ratio = np.nan
             valid_mask = False
 
         valid_mask = 1.0 if valid_mask else 0.0
 
         # All metrics are over the domain [0, infinity) with 0 as the best and infinity as the worst
-        return (i, j, np.abs(np.log(output.anees / x_gt.shape[0])), validity_ratio, valid_mask, output.rmse)
+        return (i, j, np.abs(np.log(output.anees / x_gt.shape[0])), validity_ratio, valid_mask, output.bias_mag)
 
     results = Parallel(n_jobs=-1, verbose=True)(delayed(exp_cb)(i) for i in coords)
 
     # Store results in array
     for result in results:
-        i, j, anees, ratio, mask, rmse = result
+        i, j, anees, ratio, mask, bias_mag = result
         anees_array[i, j] = anees
         valid_array[i, j] = ratio
         valid_mask_array[i, j] = mask
-        rmse_array[i, j] = rmse
+        bias_mag_array[i, j] = bias_mag
 
     # Calculate the extent of the plots
     if exp_params.range_resolution > 1:
@@ -122,17 +122,17 @@ def main(args):
     print(f"stepsize: {step_size}")
     extent = [exp_params.x_range[0] - step_size/2, exp_params.x_range[1] + step_size/2, exp_params.y_range[0] - step_size/2, exp_params.y_range[1] + step_size/2]
 
-    # Uncomment for introduction image
-    # fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(20, 5)) 
-    # create_heatmap(fig, ax[0], anees_array, extent, "lnANEES", likelihood_model.Sats, lognorm=True)
-    # create_heatmap(fig, ax[1], valid_array, extent, "Validity Ratio", likelihood_model.Sats, lognorm=True)
-    # create_heatmap(fig, ax[2], valid_mask_array, extent, "Validity Mask", likelihood_model.Sats)
-
     # Comment the following code block when creating the introduction image
     fig, ax = plt.subplots(nrows=1, ncols=4, figsize=(20, 5))
-    create_heatmap(fig, ax[0], anees_array, extent, "lnANEES", likelihood_model.Sats, lognorm=True)
-    create_heatmap(fig, ax[1], rmse_array, extent, "Bias Magnitude", likelihood_model.Sats, lognorm=True)
-    create_heatmap(fig, ax[2], valid_array, extent, "Validity Ratio", likelihood_model.Sats, lognorm=True)
+    if "twod_range" in exp_params.model_name:
+        create_heatmap(fig, ax[0], anees_array, extent, "lnANEES", likelihood_model.Sats)
+        create_heatmap(fig, ax[1], bias_mag_array, extent, "Bias Magnitude", likelihood_model.Sats)
+        create_heatmap(fig, ax[2], valid_array, extent, "Validity Ratio", likelihood_model.Sats)
+    else:
+        create_heatmap(fig, ax[0], anees_array, extent, "lnANEES", likelihood_model.Sats, lognorm=True)
+        create_heatmap(fig, ax[1], bias_mag_array, extent, "Bias Magnitude", likelihood_model.Sats, lognorm=True)
+        create_heatmap(fig, ax[2], valid_array, extent, "Validity Ratio", likelihood_model.Sats, lognorm=True)
+
     create_heatmap(fig, ax[3], valid_mask_array, extent, "Validity Mask", likelihood_model.Sats)
 
     # Place legend beneath all subplots
@@ -159,11 +159,11 @@ def main(args):
     output_lines_to_save.append(f"Pearson's Correlation between lnANEES and VR:\n\tPearson: {res_anees_p.statistic}, p-value: {res_anees_p.pvalue}")
     output_lines_to_save.append(f"Spearmans's Correlation between lnANEES and VR:\n\tSpearman: {res_anees_s.statistic}, p-value: {res_anees_s.pvalue}")
 
-    rmse_non_nan_mask = np.logical_and(~np.isnan(rmse_array), ~np.isnan(valid_array))
-    res_rmse_p = stats.pearsonr(rmse_array[rmse_non_nan_mask].flatten(), valid_array[rmse_non_nan_mask].flatten())
-    res_rmse_s = stats.spearmanr(rmse_array[rmse_non_nan_mask].flatten(), valid_array[rmse_non_nan_mask].flatten())
-    output_lines_to_save.append(f"Pearson's Correlation between Bias Magnitude and VR:\n\tPearson: {res_rmse_p.statistic}, p-value: {res_rmse_p.pvalue}")
-    output_lines_to_save.append(f"Spearman's Correlation between Bias Magnitude and VR:\n\tSpearman: {res_rmse_s.statistic}, p-value: {res_rmse_s.pvalue}")
+    bias_mag_non_nan_mask = np.logical_and(~np.isnan(bias_mag_array), ~np.isnan(valid_array))
+    res_bias_mag_p = stats.pearsonr(bias_mag_array[bias_mag_non_nan_mask].flatten(), valid_array[bias_mag_non_nan_mask].flatten())
+    res_bias_mag_s = stats.spearmanr(bias_mag_array[bias_mag_non_nan_mask].flatten(), valid_array[bias_mag_non_nan_mask].flatten())
+    output_lines_to_save.append(f"Pearson's Correlation between Bias Magnitude and VR:\n\tPearson: {res_bias_mag_p.statistic}, p-value: {res_bias_mag_p.pvalue}")
+    output_lines_to_save.append(f"Spearman's Correlation between Bias Magnitude and VR:\n\tSpearman: {res_bias_mag_s.statistic}, p-value: {res_bias_mag_s.pvalue}")
 
     for output in output_lines_to_save:
         print(output)

@@ -82,7 +82,7 @@ def main(args):
         locs[:,[i]] = np.array([[exp_params.eval_locs[i].x, exp_params.eval_locs[i].y]]).T
 
     anees_array = np.zeros((n_eval_locs, exp_params.range_resolution))
-    rmse_array = np.zeros((n_eval_locs, exp_params.range_resolution))
+    bias_mag_array = np.zeros((n_eval_locs, exp_params.range_resolution))
     valid_array = np.zeros((n_eval_locs, exp_params.range_resolution))
     valid_mask_array = np.zeros((n_eval_locs, exp_params.range_resolution))
 
@@ -111,17 +111,17 @@ def main(args):
         valid_mask, validity_ratio = validity(likelihood_model, likelihood_model.n, exp_params.N_ind_meas, likelihood_model.S, x_gt, rstar, rstar, mode=exp_params.validity_mode)
         valid_mask = 1.0 if valid_mask else 0.0
 
-        return (j, i, np.abs(np.log(output.anees / 2)), validity_ratio, valid_mask, output.rmse)
+        return (j, i, np.abs(np.log(output.anees / 2)), validity_ratio, valid_mask, output.bias_mag)
 
     results = Parallel(n_jobs=-1, verbose=True)(delayed(exp_cb)(i) for i in coords)
 
     # Store results in array
     for result in results:
-        j, i, anees, ratio, mask, rmse = result
+        j, i, anees, ratio, mask, bias_mag = result
         anees_array[i, j] = anees
         valid_array[i, j] = ratio
         valid_mask_array[i, j] = mask
-        rmse_array[i, j] = rmse
+        bias_mag_array[i, j] = bias_mag
 
     # Calculate the extent of the plots
     if exp_params.range_resolution > 1:
@@ -137,7 +137,7 @@ def main(args):
 
     fig, ax = plt.subplots(nrows=1, ncols=4, figsize=(20, 5))
     create_heatmap(fig, ax[0], anees_array, extent, "lnANEES", n_eval_locs)
-    create_heatmap(fig, ax[1], rmse_array, extent, "Bias Magnitude", n_eval_locs)
+    create_heatmap(fig, ax[1], bias_mag_array, extent, "Bias Magnitude", n_eval_locs)
     create_heatmap(fig, ax[2], valid_array, extent, "Validity Ratio", n_eval_locs)
     create_heatmap(fig, ax[3], valid_mask_array, extent, "Validity Mask", n_eval_locs)
     plt.tight_layout() 
@@ -151,11 +151,11 @@ def main(args):
     output_lines_to_save.append(f"Pearson's Correlation between lnANEES and VR:\n\tPearson: {res_anees_p.statistic}, p-value: {res_anees_p.pvalue}")
     output_lines_to_save.append(f"Spearmans's Correlation between lnANEES and VR:\n\tSpearman: {res_anees_s.statistic}, p-value: {res_anees_s.pvalue}")
 
-    rmse_non_nan_mask = np.logical_and(~np.isnan(rmse_array), ~np.isnan(valid_array))
-    res_rmse_p = stats.pearsonr(rmse_array[rmse_non_nan_mask].flatten(), valid_array[rmse_non_nan_mask].flatten())
-    res_rmse_s = stats.spearmanr(rmse_array[rmse_non_nan_mask].flatten(), valid_array[rmse_non_nan_mask].flatten())
-    output_lines_to_save.append(f"Pearson's Correlation between Bias Magnitude and VR:\n\tPearson: {res_rmse_p.statistic}, p-value: {res_rmse_p.pvalue}")
-    output_lines_to_save.append(f"Spearman's Correlation between Bias Magnitude and VR:\n\tSpearman: {res_rmse_s.statistic}, p-value: {res_rmse_s.pvalue}")
+    bias_mag_non_nan_mask = np.logical_and(~np.isnan(bias_mag_array), ~np.isnan(valid_array))
+    res_bias_mag_p = stats.pearsonr(bias_mag_array[bias_mag_non_nan_mask].flatten(), valid_array[bias_mag_non_nan_mask].flatten())
+    res_bias_mag_s = stats.spearmanr(bias_mag_array[bias_mag_non_nan_mask].flatten(), valid_array[bias_mag_non_nan_mask].flatten())
+    output_lines_to_save.append(f"Pearson's Correlation between Bias Magnitude and VR:\n\tPearson: {res_bias_mag_p.statistic}, p-value: {res_bias_mag_p.pvalue}")
+    output_lines_to_save.append(f"Spearman's Correlation between Bias Magnitude and VR:\n\tSpearman: {res_bias_mag_s.statistic}, p-value: {res_bias_mag_s.pvalue}")
 
     for output in output_lines_to_save:
         print(output)
