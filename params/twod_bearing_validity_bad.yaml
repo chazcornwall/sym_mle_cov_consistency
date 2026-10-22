@@ -1,9 +1,10 @@
 name: bearing_close
 save_plot: True
+save_data: True
 x_range: [-5.0, 5.0]
 y_range: [-5.0, 5.0]
 range_resolution: 20
-its_per_step: 1000
+its_per_step: 2000
 N_ind_meas: 5
 initial_guess_stddev: 0.5
 validity_mode: 0

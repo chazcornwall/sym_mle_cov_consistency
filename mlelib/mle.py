@@ -178,7 +178,7 @@ class MaximumLikelihood:
 
         return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=P)
     
-    def experiment(self, x_gt: np.ndarray, h: Callable, z_cov: np.ndarray, N: int = 1000, Nind: int = 1, plot : bool = True) -> MlExperimentOutput:
+    def experiment(self, x_gt: np.ndarray, h: Callable, z_cov: np.ndarray, N: int = 1000, Nind: int = 1, plot : bool = True, outlier_reject : Callable[[np.ndarray], True] = None) -> MlExperimentOutput:
         L = np.linalg.cholesky(z_cov)
         x_est_samples = np.zeros((self.__params.x0.shape[0], N))
         nees = np.zeros(N) # Normalized estimation error squared
@@ -188,25 +188,34 @@ class MaximumLikelihood:
         z_extent = 4 * np.sqrt(z_cov[0,0]) * np.ones(z_mean.shape)
 
         # Run the same estimation problem N times and collect data
+        N_rejected = 0
         for i in range(N):
             z = np.zeros((z_mean.shape[0], Nind))
             for k in range(Nind):
                 z[:,[k]] =  self.__params.model.sample(x_gt, z_mean - z_extent, z_mean + z_extent) # z_mean + L @ np.random.randn(z_mean.shape[0], 1)
             sol = self.mle(z)
-            if i == 0:
-                P_avg = sol.P
+
+            reject = False
+            if outlier_reject is not None:
+                reject = outlier_reject(sol.x)
+
+            if not reject:
+                if i == 0:
+                    P_avg = sol.P
+                else:
+                    P_avg = 1/(i+1) * sol.P + i/(i+1) * P_avg
+                x_est_samples[:, [i]] = sol.x
+                try:
+                    nees[i] = ((sol.x - x_gt).T @ np.linalg.inv(sol.P) @ (sol.x - x_gt))[0,0]
+                except np.linalg.LinAlgError:
+                    nees[i] = np.nan
+                if i % int(N / 10 + 0.5) == 0:
+                    P_est_list.append(sol.P)
             else:
-                P_avg = 1/(i+1) * sol.P + i/(i+1) * P_avg
-            x_est_samples[:, [i]] = sol.x
-            try:
-                nees[i] = ((sol.x - x_gt).T @ np.linalg.inv(sol.P) @ (sol.x - x_gt))[0,0]
-            except np.linalg.LinAlgError:
-                nees[i] = np.nan
-            if i % int(N / 10 + 0.5) == 0:
-                P_est_list.append(sol.P)
+                N_rejected += 1
 
         # Average normalized estimation error squared. Should be number of dimensions in state
-        print(f"Stats for {N} trials of estimating x_gt: {x_gt.T}")
+        print(f"Stats for {N - N_rejected}/{N} trials of estimating x_gt: {x_gt.T}")
         print(f"\tANEES: {np.mean(nees)}")
         print(f"\tE[xhat - xgt]: {np.mean(x_est_samples - x_gt, axis=1)}")
         P_empirical = np.cov(x_est_samples)

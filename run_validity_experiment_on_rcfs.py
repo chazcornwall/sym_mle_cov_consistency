@@ -26,6 +26,8 @@ class CostValidityExperimentConfig(BaseModel):
     name: str
     save_plot_dir: Optional[str] = "figs"
     save_plot: Optional[bool] = False
+    save_data_dir: Optional[str] = "data"
+    save_data: Optional[bool] = False
     delta_range: Optional[List[float]] = [0, 10.0]
     range_resolution: Optional[int] = 100
     eval_locs: List[Location] = []
@@ -81,47 +83,53 @@ def main(args):
     for i in range(n_eval_locs):
         locs[:,[i]] = np.array([[exp_params.eval_locs[i].x, exp_params.eval_locs[i].y]]).T
 
-    anees_array = np.zeros((n_eval_locs, exp_params.range_resolution))
-    bias_mag_array = np.zeros((n_eval_locs, exp_params.range_resolution))
-    valid_array = np.zeros((n_eval_locs, exp_params.range_resolution))
-    valid_mask_array = np.zeros((n_eval_locs, exp_params.range_resolution))
+    if args.data_prefix is None:
+        anees_array = np.zeros((n_eval_locs, exp_params.range_resolution))
+        bias_mag_array = np.zeros((n_eval_locs, exp_params.range_resolution))
+        valid_array = np.zeros((n_eval_locs, exp_params.range_resolution))
+        valid_mask_array = np.zeros((n_eval_locs, exp_params.range_resolution))
 
-    for j, delta in enumerate(np.linspace(exp_params.delta_range[0], exp_params.delta_range[1], num=exp_params.range_resolution)):
-        for i in range(n_eval_locs):
-            coords.append((j, i, delta, locs[:,[i]]))
+        for j, delta in enumerate(np.linspace(exp_params.delta_range[0], exp_params.delta_range[1], num=exp_params.range_resolution)):
+            for i in range(n_eval_locs):
+                coords.append((j, i, delta, locs[:,[i]]))
 
-    # Callback for parallel for loop 
-    def exp_cb(coord_tuple):
-        j, i, delta, pos = coord_tuple
+        # Callback for parallel for loop 
+        def exp_cb(coord_tuple):
+            j, i, delta, pos = coord_tuple
 
-        # Create random initial starting point for optimization
-        x_gt = pos
-        x0 = x_gt + exp_params.initial_guess_stddev * np.random.randn(2,1)
+            # Create random initial starting point for optimization
+            x_gt = pos
+            x0 = x_gt + exp_params.initial_guess_stddev * np.random.randn(2,1)
 
-        # Evaluate estmator using ground truth
-        likelihood_model_params.delta = delta
-        likelihood_model = likelihood_model_cb(likelihood_model_params)
-        ml_params = MlParams(
-            x0=x0, 
-            model=likelihood_model,
-            max_its=50
-        )
-        ml = MaximumLikelihood(ml_params)
-        output : MlExperimentOutput = ml.experiment(x_gt, likelihood_model.h, likelihood_model.S, N=exp_params.its_per_step, Nind=exp_params.N_ind_meas, plot=False)
-        valid_mask, validity_ratio = validity(likelihood_model, likelihood_model.n, exp_params.N_ind_meas, likelihood_model.S, x_gt, rstar, rstar, mode=exp_params.validity_mode)
-        valid_mask = 1.0 if valid_mask else 0.0
+            # Evaluate estmator using ground truth
+            likelihood_model_params.delta = delta
+            likelihood_model = likelihood_model_cb(likelihood_model_params)
+            ml_params = MlParams(
+                x0=x0, 
+                model=likelihood_model,
+                max_its=50
+            )
+            ml = MaximumLikelihood(ml_params)
+            output : MlExperimentOutput = ml.experiment(x_gt, likelihood_model.h, likelihood_model.S, N=exp_params.its_per_step, Nind=exp_params.N_ind_meas, plot=False)
+            valid_mask, validity_ratio = validity(likelihood_model, likelihood_model.n, exp_params.N_ind_meas, likelihood_model.S, x_gt, rstar, rstar, mode=exp_params.validity_mode)
+            valid_mask = 1.0 if valid_mask else 0.0
 
-        return (j, i, np.abs(np.log(output.anees / 2)), validity_ratio, valid_mask, output.bias_mag)
+            return (j, i, np.abs(np.log(output.anees / 2)), validity_ratio, valid_mask, output.bias_mag)
 
-    results = Parallel(n_jobs=-1, verbose=True)(delayed(exp_cb)(i) for i in coords)
+        results = Parallel(n_jobs=-1, verbose=True)(delayed(exp_cb)(i) for i in coords)
 
-    # Store results in array
-    for result in results:
-        j, i, anees, ratio, mask, bias_mag = result
-        anees_array[i, j] = anees
-        valid_array[i, j] = ratio
-        valid_mask_array[i, j] = mask
-        bias_mag_array[i, j] = bias_mag
+        # Store results in array
+        for result in results:
+            j, i, anees, ratio, mask, bias_mag = result
+            anees_array[i, j] = anees
+            valid_array[i, j] = ratio
+            valid_mask_array[i, j] = mask
+            bias_mag_array[i, j] = bias_mag
+    else:
+        anees_array = np.load(args.data_prefix + "_anees.npy")
+        bias_mag_array = np.load(args.data_prefix + "_bias_mag.npy")
+        valid_array = np.load(args.data_prefix + "_valid.npy")
+        valid_mask_array = np.load(args.data_prefix + "_valid_mask.npy")
 
     # Calculate the extent of the plots
     if exp_params.range_resolution > 1:
@@ -160,9 +168,22 @@ def main(args):
     for output in output_lines_to_save:
         print(output)
 
+    if exp_params.save_data and args.data_prefix is None: # Do not want to resave data!
+        now = datetime.now()
+        dir = "data/"
+        if exp_params.save_data_dir:
+            dir = exp_params.save_data_dir + "/"
+        filename = exp_params.name + "_" + now.strftime("%Y%m%d_%H%M%S")
+        np.save(filename + "_anees.npy", anees_array)
+        np.save(filename + "_bias_mag.npy", bias_mag_array)
+        np.save(filename + "_valid.npy", valid_array)
+        np.save(filename + "_valid_mask.npy", valid_mask_array)
+
     if exp_params.save_plot:
         now = datetime.now()
         dir = "figs/"
+        if exp_params.save_plot_dir:
+            dir = exp_params.save_plot_dir + "/"
         filename = exp_params.name + "_" + now.strftime("%Y%m%d_%H%M%S")
         plt.savefig(dir + filename + ".png", bbox_inches="tight")
 
@@ -176,4 +197,5 @@ def main(args):
 if __name__ == "__main__":
     parser = ArgumentParser("twod_range_validity_cost")
     parser.add_argument("--config", default='params/cost_validity/twod_range_huber_validity.yaml')
+    parser.add_argument("--data_prefix", default=None)
     main(parser.parse_args())
