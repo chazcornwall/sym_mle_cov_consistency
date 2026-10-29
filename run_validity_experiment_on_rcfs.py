@@ -8,6 +8,7 @@ import yaml
 from argparse import ArgumentParser
 from joblib import Parallel, delayed
 from datetime import datetime
+import os
 
 # Import custom library for maximum likelihood estimation
 from mlelib import MaximumLikelihood, MlParams, MlExperimentOutput
@@ -15,7 +16,7 @@ from mlelib.validity import validity
 
 from utils.utils import load_likelihood_model
 
-plt.rcParams.update({'font.size': 16})
+plt.rcParams.update({'font.size': 18})
 
 class Location(BaseModel):
     x: float
@@ -40,7 +41,7 @@ class CostValidityExperimentConfig(BaseModel):
 
 
 def plot_eval_locations(fig, ax, locs: np.ndarray, title: str, sats: np.ndarray):
-    ax.scatter(sats[0,:], sats[1,:], c='red', label='Satellites')
+    ax.scatter(sats[0,:], sats[1,:], c='red', label='Landmarks')
     ax.scatter(locs[0,:], locs[1,:], c='blue', marker='*', s=144, label="Eval Locs")
 
     for i in range(locs.shape[1]):
@@ -57,8 +58,11 @@ def plot_eval_locations(fig, ax, locs: np.ndarray, title: str, sats: np.ndarray)
     ax.legend()
 
 
-def create_heatmap(fig, ax, array: np.ndarray, extent: List[float], title: str, n_locs: int):
-    im = ax.imshow(array, extent=extent, aspect='auto', origin='lower')
+def create_heatmap(fig, ax, array: np.ndarray, extent: List[float], title: str, n_locs: int, cmap: str = 'viridis', lognorm: bool = False):
+    if lognorm:
+        im = ax.imshow(array, extent=extent, aspect='auto', origin='lower', norm=colors.LogNorm(), cmap=cmap)
+    else: 
+        im = ax.imshow(array, extent=extent, aspect='auto', origin='lower', cmap=cmap)
     fig.colorbar(im)
     ax.set_title(title)
     ax.set_xlabel("Delta")
@@ -144,10 +148,10 @@ def main(args):
     plt.tight_layout()
 
     fig, ax = plt.subplots(nrows=1, ncols=4, figsize=(20, 5))
-    create_heatmap(fig, ax[0], anees_array, extent, "lnANEES", n_eval_locs)
-    create_heatmap(fig, ax[1], bias_mag_array, extent, "Bias Magnitude", n_eval_locs)
-    create_heatmap(fig, ax[2], valid_array, extent, "Validity Ratio", n_eval_locs)
-    create_heatmap(fig, ax[3], valid_mask_array, extent, "Validity Mask", n_eval_locs)
+    create_heatmap(fig, ax[0], anees_array, extent, "lnANEES", n_eval_locs, lognorm=True)
+    create_heatmap(fig, ax[1], bias_mag_array, extent, "Bias Magnitude", n_eval_locs, lognorm=True)
+    create_heatmap(fig, ax[2], valid_array, extent, "Validity Ratio", n_eval_locs, lognorm=True)
+    create_heatmap(fig, ax[3], valid_mask_array, extent, "Validity Mask", n_eval_locs, cmap='viridis_r')
     plt.tight_layout() 
 
     output_lines_to_save : List[str] = []
@@ -156,14 +160,18 @@ def main(args):
     anees_non_nan_mask = np.logical_and(~np.isnan(anees_array), ~np.isnan(valid_array))
     res_anees_p = stats.pearsonr(anees_array[anees_non_nan_mask].flatten(), valid_array[anees_non_nan_mask].flatten())
     res_anees_s = stats.spearmanr(anees_array[anees_non_nan_mask].flatten(), valid_array[anees_non_nan_mask].flatten())
+    res_anees_k = stats.kendalltau(anees_array[anees_non_nan_mask].flatten(), valid_array[anees_non_nan_mask].flatten())
     output_lines_to_save.append(f"Pearson's Correlation between lnANEES and VR:\n\tPearson: {res_anees_p.statistic}, p-value: {res_anees_p.pvalue}")
     output_lines_to_save.append(f"Spearmans's Correlation between lnANEES and VR:\n\tSpearman: {res_anees_s.statistic}, p-value: {res_anees_s.pvalue}")
+    output_lines_to_save.append(f"Kendall's tau between lnANEES and VR:\n\ttau: {res_anees_k.statistic}, p-value: {res_anees_k.pvalue}")
 
     bias_mag_non_nan_mask = np.logical_and(~np.isnan(bias_mag_array), ~np.isnan(valid_array))
     res_bias_mag_p = stats.pearsonr(bias_mag_array[bias_mag_non_nan_mask].flatten(), valid_array[bias_mag_non_nan_mask].flatten())
     res_bias_mag_s = stats.spearmanr(bias_mag_array[bias_mag_non_nan_mask].flatten(), valid_array[bias_mag_non_nan_mask].flatten())
+    res_bias_mag_k = stats.kendalltau(bias_mag_array[bias_mag_non_nan_mask].flatten(), valid_array[bias_mag_non_nan_mask].flatten())
     output_lines_to_save.append(f"Pearson's Correlation between Bias Magnitude and VR:\n\tPearson: {res_bias_mag_p.statistic}, p-value: {res_bias_mag_p.pvalue}")
     output_lines_to_save.append(f"Spearman's Correlation between Bias Magnitude and VR:\n\tSpearman: {res_bias_mag_s.statistic}, p-value: {res_bias_mag_s.pvalue}")
+    output_lines_to_save.append(f"Kendall's tau between Bias Magnitude and VR:\n\ttau: {res_bias_mag_k.statistic}, p-value: {res_bias_mag_k.pvalue}")
 
     for output in output_lines_to_save:
         print(output)
@@ -174,17 +182,20 @@ def main(args):
         if exp_params.save_data_dir:
             dir = exp_params.save_data_dir + "/"
         filename = exp_params.name + "_" + now.strftime("%Y%m%d_%H%M%S")
-        np.save(filename + "_anees.npy", anees_array)
-        np.save(filename + "_bias_mag.npy", bias_mag_array)
-        np.save(filename + "_valid.npy", valid_array)
-        np.save(filename + "_valid_mask.npy", valid_mask_array)
+        np.save(dir + filename + "_anees.npy", anees_array)
+        np.save(dir + filename + "_bias_mag.npy", bias_mag_array)
+        np.save(dir + filename + "_valid.npy", valid_array)
+        np.save(dir + filename + "_valid_mask.npy", valid_mask_array)
 
     if exp_params.save_plot:
         now = datetime.now()
         dir = "figs/"
         if exp_params.save_plot_dir:
             dir = exp_params.save_plot_dir + "/"
-        filename = exp_params.name + "_" + now.strftime("%Y%m%d_%H%M%S")
+        if args.data_prefix:
+            filename = os.path.splitext(os.path.basename(args.data_prefix))[0]
+        else:
+            filename = exp_params.name + "_" + now.strftime("%Y%m%d_%H%M%S")
         plt.savefig(dir + filename + ".png", bbox_inches="tight")
 
         # Save stats in a text file

@@ -1,0 +1,12 @@
+Pearson's Correlation between lnANEES and VR:
+	Pearson: 0.8565148648592805, p-value: 6.617329954102322e-30
+Spearmans's Correlation between lnANEES and VR:
+	Spearman: 0.4316591659165916, p-value: 7.3246152471658356e-06
+Kendall's tau between lnANEES and VR:
+	tau: 0.2989898989898991, p-value: 1.0451615020454786e-05
+Pearson's Correlation between Bias Magnitude and VR:
+	Pearson: 0.42275077592627075, p-value: 1.1780312073188428e-05
+Spearman's Correlation between Bias Magnitude and VR:
+	Spearman: 0.41192919291929186, p-value: 2.0611995100741062e-05
+Kendall's tau between Bias Magnitude and VR:
+	tau: 0.2763636363636364, p-value: 4.6199823046546155e-05

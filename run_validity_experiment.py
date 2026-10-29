@@ -8,6 +8,7 @@ import yaml
 from argparse import ArgumentParser
 from joblib import Parallel, delayed
 from datetime import datetime
+import os
 
 # Import custom library for maximum likelihood estimation
 from mlelib import MaximumLikelihood, MlParams, MlExperimentOutput
@@ -16,7 +17,7 @@ from mlelib.validity import validity
 
 from utils.utils import load_likelihood_model
 
-plt.rcParams.update({'font.size': 16})
+plt.rcParams.update({'font.size': 18})
 
 
 class ValidityExperimentConfig(BaseModel):
@@ -44,7 +45,7 @@ def create_heatmap(fig, ax, array: np.ndarray, extent: List[float], title: str, 
     fig.colorbar(im, shrink=0.55)
     
     # Plot satellites
-    ax.scatter(sats[0,:], sats[1,:], c='red', label='Satellites')
+    ax.scatter(sats[0,:], sats[1,:], c='red', label='Landmarks')
     
     ax.set_title(title)
     ax.set_xlabel("Meters")
@@ -198,7 +199,10 @@ def main(args):
         dir = "figs/"
         if exp_params.save_plot_dir:
             dir = exp_params.save_plot_dir + "/"
-        filename = exp_params.name + "_" + now.strftime("%Y%m%d_%H%M%S")
+        if args.data_prefix:
+            filename = os.path.splitext(os.path.basename(args.data_prefix))[0]
+        else:
+            filename = exp_params.name + "_" + now.strftime("%Y%m%d_%H%M%S")
         plt.savefig(dir + filename + ".png", bbox_inches="tight")
 
         # Save stats in a text file

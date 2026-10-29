@@ -1,5 +1,6 @@
 name: meas_sparse_cauchy
 save_plot: True
+save_data: True
 delta_range: [0.1, 5.0]
 range_resolution: 10 # Reduce resolution because we do not care so much for these experiments
 its_per_step: 1000
