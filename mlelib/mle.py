@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Callable, Tuple, List
+import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from mlelib.utils import plot_cov
@@ -178,7 +179,7 @@ class MaximumLikelihood:
 
         return MlSolution(it=curr_i + 1, error=rho(res), x=x, x_seq=x_seq, P=P)
     
-    def experiment(self, x_gt: np.ndarray, h: Callable, z_cov: np.ndarray, N: int = 1000, Nind: int = 1, plot : bool = True, outlier_reject : Callable[[np.ndarray], True] = None) -> MlExperimentOutput:
+    def experiment(self, x_gt: np.ndarray, h: Callable, z_cov: np.ndarray, N: int = 1000, Nind: int = 1, plot : bool = True, outlier_reject : Callable[[np.ndarray], True] = None, save_nees : bool = False) -> MlExperimentOutput:
         L = np.linalg.cholesky(z_cov)
         x_est_samples = np.zeros((self.__params.x0.shape[0], N))
         nees = np.zeros(N) # Normalized estimation error squared
@@ -213,6 +214,10 @@ class MaximumLikelihood:
                     P_est_list.append(sol.P)
             else:
                 N_rejected += 1
+
+        if save_nees:
+            now = datetime.datetime.now()
+            np.save(f"{int(x_gt[0,0]*100)}_{int(x_gt[1,0]*100)}_{now.strftime("%Y%m%d_%H%M%S")}.npy", nees)
 
         # Average normalized estimation error squared. Should be number of dimensions in state
         print(f"Stats for {N - N_rejected}/{N} trials of estimating x_gt: {x_gt.T}")
